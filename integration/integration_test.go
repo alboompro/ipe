@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +18,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"ipe/api"
-	"ipe/app"
 	"ipe/events"
 	"ipe/storage"
 	"ipe/testutils"
@@ -24,10 +25,43 @@ import (
 	"ipe/websockets"
 )
 
+// newWebSocketTestServer creates a test HTTP server with WebSocket handler
+func newWebSocketTestServer(storage storage.Storage) *httptest.Server {
+	router := mux.NewRouter()
+	handler := websockets.NewWebsocket(storage)
+	router.Path("/app/{key}").Methods("GET").Handler(handler)
+	server := httptest.NewServer(router)
+	return server
+}
+
+// connectWebSocket connects to a WebSocket endpoint
+func connectWebSocket(serverURL, appKey string, protocol int, queryParams map[string]string) (*websocket.Conn, *http.Response, error) {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	u.Scheme = "ws"
+	u.Path = "/app/" + appKey
+
+	q := u.Query()
+	if protocol > 0 {
+		q.Set("protocol", strconv.Itoa(protocol))
+	}
+	for k, v := range queryParams {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	conn, resp, err := dialer.Dial(u.String(), nil)
+	return conn, resp, err
+}
+
 // TestEndToEnd_WebSocketConnection tests complete WebSocket connection flow
 func TestEndToEnd_WebSocketConnection(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -35,7 +69,7 @@ func TestEndToEnd_WebSocketConnection(t *testing.T) {
 		t.Fatalf("Failed to get app: %v", err)
 	}
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -68,7 +102,7 @@ func TestEndToEnd_WebSocketConnection(t *testing.T) {
 // TestEndToEnd_SubscribePublishReceive tests complete subscribe -> publish -> receive flow
 func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	wsServer, _ := testutils.NewWebSocketTestServer(storage)
+	wsServer := newWebSocketTestServer(storage)
 	defer wsServer.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -77,7 +111,7 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	}
 
 	// Connect WebSocket
-	conn, _, err := testutils.ConnectWebSocket(wsServer.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(wsServer.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -89,12 +123,6 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	if err := conn.ReadJSON(&connEstablished); err != nil {
 		t.Fatalf("Failed to read connection_established: %v", err)
 	}
-
-	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
-	}
-	socketID := connData["socket_id"].(string)
 
 	// Subscribe to channel
 	subscribeEvent := events.NewSubscribe("test-channel", "", "")
@@ -151,7 +179,7 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 // TestEndToEnd_PresenceChannelFullLifecycle tests presence channel complete lifecycle
 func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -160,7 +188,7 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	}
 
 	// Connect first client
-	conn1, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn1, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect client 1: %v", err)
 	}
@@ -180,7 +208,7 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	socketID1 := connData1["socket_id"].(string)
 
 	// Connect second client
-	conn2, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn2, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect client 2: %v", err)
 	}
@@ -261,7 +289,7 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 // TestEndToEnd_PrivateChannelAuthentication tests private channel authentication flow
 func TestEndToEnd_PrivateChannelAuthentication(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -269,7 +297,7 @@ func TestEndToEnd_PrivateChannelAuthentication(t *testing.T) {
 		t.Fatalf("Failed to get app: %v", err)
 	}
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -314,7 +342,7 @@ func TestEndToEnd_PrivateChannelAuthentication(t *testing.T) {
 // TestEndToEnd_MultipleClientsSameChannel tests multiple clients on same channel
 func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -325,7 +353,7 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 	// Connect multiple clients
 	conns := make([]*websocket.Conn, 3)
 	for i := 0; i < 3; i++ {
-		conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+		conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 		if err != nil {
 			t.Fatalf("Failed to connect client %d: %v", i, err)
 		}
@@ -367,7 +395,7 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 // TestEndToEnd_APIChannelInfoWhileActive tests retrieving channel info while active
 func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	wsServer, _ := testutils.NewWebSocketTestServer(storage)
+	wsServer := newWebSocketTestServer(storage)
 	defer wsServer.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -376,7 +404,7 @@ func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 	}
 
 	// Connect and subscribe
-	conn, _, err := testutils.ConnectWebSocket(wsServer.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(wsServer.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -430,4 +458,3 @@ func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 		t.Error("Channel should be occupied")
 	}
 }
-

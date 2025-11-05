@@ -8,30 +8,66 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"ipe/app"
 	"ipe/events"
 	"ipe/storage"
 	"ipe/testutils"
 	"ipe/utils"
 )
 
+// newWebSocketTestServer creates a test HTTP server with WebSocket handler
+func newWebSocketTestServer(storage storage.Storage) *httptest.Server {
+	router := mux.NewRouter()
+	handler := NewWebsocket(storage)
+	router.Path("/app/{key}").Methods("GET").Handler(handler)
+	server := httptest.NewServer(router)
+	return server
+}
+
+// connectWebSocket connects to a WebSocket endpoint
+func connectWebSocket(serverURL, appKey string, protocol int, queryParams map[string]string) (*websocket.Conn, *http.Response, error) {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	u.Scheme = "ws"
+	u.Path = "/app/" + appKey
+
+	q := u.Query()
+	if protocol > 0 {
+		q.Set("protocol", strconv.Itoa(protocol))
+	}
+	for k, v := range queryParams {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	conn, resp, err := dialer.Dial(u.String(), nil)
+	return conn, resp, err
+}
+
 // TestWebSocket_ConnectionEstablishment_ValidProtocol tests successful connection with valid protocol
 func TestWebSocket_ConnectionEstablishment_ValidProtocol(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, resp, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, resp, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -56,14 +92,14 @@ func TestWebSocket_ConnectionEstablishment_ValidProtocol(t *testing.T) {
 // TestWebSocket_ConnectionEstablishment_InvalidProtocol tests rejection of invalid protocol version
 func TestWebSocket_ConnectionEstablishment_InvalidProtocol(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 6, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -95,14 +131,14 @@ func TestWebSocket_ConnectionEstablishment_InvalidProtocol(t *testing.T) {
 // TestWebSocket_ConnectionEstablishment_NoProtocol tests rejection when no protocol version is supplied
 func TestWebSocket_ConnectionEstablishment_NoProtocol(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 0, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 0, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -132,10 +168,10 @@ func TestWebSocket_ConnectionEstablishment_NoProtocol(t *testing.T) {
 // TestWebSocket_ConnectionEstablishment_AppNotFound tests rejection when app key doesn't exist
 func TestWebSocket_ConnectionEstablishment_AppNotFound(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, "non-existent-key", 7, nil)
+	conn, _, err := connectWebSocket(server.URL, "non-existent-key", 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -167,10 +203,10 @@ func TestWebSocket_ConnectionEstablishment_DisabledApp(t *testing.T) {
 	app := testutils.NewTestApp()
 	app.Enabled = false
 	storage := testutils.NewTestStorageWithApp(app)
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -200,14 +236,14 @@ func TestWebSocket_ConnectionEstablishment_DisabledApp(t *testing.T) {
 // TestWebSocket_PingPong tests ping/pong cycle
 func TestWebSocket_PingPong(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -241,14 +277,14 @@ func TestWebSocket_PingPong(t *testing.T) {
 // TestWebSocket_SubscribePublicChannel tests subscribing to a public channel
 func TestWebSocket_SubscribePublicChannel(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -308,14 +344,14 @@ func TestWebSocket_SubscribePublicChannel(t *testing.T) {
 // TestWebSocket_SubscribePrivateChannel tests subscribing to a private channel with auth
 func TestWebSocket_SubscribePrivateChannel(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -361,14 +397,14 @@ func TestWebSocket_SubscribePrivateChannel(t *testing.T) {
 // TestWebSocket_SubscribePrivateChannel_InvalidAuth tests rejection of invalid auth
 func TestWebSocket_SubscribePrivateChannel_InvalidAuth(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -402,14 +438,14 @@ func TestWebSocket_SubscribePrivateChannel_InvalidAuth(t *testing.T) {
 // TestWebSocket_SubscribePresenceChannel tests subscribing to a presence channel
 func TestWebSocket_SubscribePresenceChannel(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -475,14 +511,14 @@ func TestWebSocket_SubscribePresenceChannel(t *testing.T) {
 // TestWebSocket_Unsubscribe tests unsubscribing from a channel
 func TestWebSocket_Unsubscribe(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -541,14 +577,14 @@ func TestWebSocket_Unsubscribe(t *testing.T) {
 // TestWebSocket_InvalidChannelName tests rejection of invalid channel names
 func TestWebSocket_InvalidChannelName(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -582,14 +618,14 @@ func TestWebSocket_InvalidChannelName(t *testing.T) {
 // TestWebSocket_InvalidJSON tests handling of invalid JSON messages
 func TestWebSocket_InvalidJSON(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -622,7 +658,7 @@ func TestWebSocket_InvalidJSON(t *testing.T) {
 // TestWebSocket_ClientEvent tests client event handling
 func TestWebSocket_ClientEvent(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -631,7 +667,7 @@ func TestWebSocket_ClientEvent(t *testing.T) {
 	}
 	app.UserEvents = true // Enable user events
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -694,7 +730,7 @@ func TestWebSocket_ClientEvent(t *testing.T) {
 // TestWebSocket_ClientEvent_Disabled tests that client events are rejected when disabled
 func TestWebSocket_ClientEvent_Disabled(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -703,7 +739,7 @@ func TestWebSocket_ClientEvent_Disabled(t *testing.T) {
 	}
 	app.UserEvents = false // Disable user events
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -764,7 +800,7 @@ func TestWebSocket_ClientEvent_Disabled(t *testing.T) {
 // TestWebSocket_ClientEvent_PublicChannel tests that client events are rejected on public channels
 func TestWebSocket_ClientEvent_PublicChannel(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
@@ -773,7 +809,7 @@ func TestWebSocket_ClientEvent_PublicChannel(t *testing.T) {
 	}
 	app.UserEvents = true
 
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -824,14 +860,14 @@ func TestWebSocket_ClientEvent_PublicChannel(t *testing.T) {
 // TestWebSocket_ConnectionClose tests graceful connection close
 func TestWebSocket_ConnectionClose(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -887,14 +923,14 @@ func TestWebSocket_ConnectionClose(t *testing.T) {
 // TestWebSocket_ConnectionClose_EOF tests handling of EOF error
 func TestWebSocket_ConnectionClose_EOF(t *testing.T) {
 	storage := testutils.NewTestStorage()
-	server, _ := testutils.NewWebSocketTestServer(storage)
+	server := newWebSocketTestServer(storage)
 	defer server.Close()
 
 	app, err := testutils.GetAppFromStorage(storage)
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := testutils.ConnectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}

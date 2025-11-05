@@ -70,7 +70,7 @@ func NewApplication(
 		UserEvents:         userEvents,
 		WebHooks:           webHooks,
 		URLWebHook:         webHookURL,
-		redisClient:       redisClient,
+		redisClient:        redisClient,
 		channelSubscribers: make(map[string]struct{}),
 	}
 
@@ -429,7 +429,7 @@ func (a *Application) Publish(c *channel.Channel, event events.Raw, ignore strin
 					} else {
 						eventMsg := redis.EventMessage{
 							Event:    event.Event,
-							Channel:   event.Channel,
+							Channel:  event.Channel,
 							Data:     eventPayload,
 							IgnoreID: ignore,
 						}

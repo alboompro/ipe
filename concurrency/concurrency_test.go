@@ -431,4 +431,3 @@ func TestRaceCondition_SubscribeUnsubscribe(t *testing.T) {
 	wg.Wait()
 	// Test passes if no race conditions detected by race detector
 }
-

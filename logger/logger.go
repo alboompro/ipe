@@ -86,4 +86,3 @@ func Warn(msg string, fields ...zap.Field) {
 func Fatal(msg string, fields ...zap.Field) {
 	GetLogger().Fatal(msg, fields...)
 }
-

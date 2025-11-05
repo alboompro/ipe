@@ -35,20 +35,20 @@ type ConnectionMetadata struct {
 
 // SubscriptionMetadata stores subscription information
 type SubscriptionMetadata struct {
-	SocketID    string    `json:"socket_id"`
-	InstanceID  string    `json:"instance_id"`
-	ChannelID   string    `json:"channel_id"`
-	ChannelData string    `json:"channel_data,omitempty"`
+	SocketID     string    `json:"socket_id"`
+	InstanceID   string    `json:"instance_id"`
+	ChannelID    string    `json:"channel_id"`
+	ChannelData  string    `json:"channel_data,omitempty"`
 	SubscribedAt time.Time `json:"subscribed_at"`
 }
 
 // EventMessage represents a message to be published via Redis Pub/Sub
 type EventMessage struct {
-	Event     string      `json:"event"`
-	Channel   string      `json:"channel"`
-	Data      interface{} `json:"data"`
-	SocketID  string      `json:"socket_id,omitempty"`
-	IgnoreID  string      `json:"ignore_id,omitempty"` // Socket ID to ignore when publishing
+	Event    string      `json:"event"`
+	Channel  string      `json:"channel"`
+	Data     interface{} `json:"data"`
+	SocketID string      `json:"socket_id,omitempty"`
+	IgnoreID string      `json:"ignore_id,omitempty"` // Socket ID to ignore when publishing
 }
 
 // NewClient creates a new Redis client with configuration from environment variables
@@ -324,4 +324,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return value
 }
-

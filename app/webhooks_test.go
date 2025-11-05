@@ -6,7 +6,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -384,13 +383,8 @@ func TestTriggerHook_Timeout(t *testing.T) {
 	app := newTestAppWithWebhooks(server.URL)
 	channel := channel2.New("test-channel")
 
-	// Create context with short timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	// Manually call triggerHook with timeout context
-	// Note: This is testing the internal function, we need to expose it or test via public methods
-	// For now, we'll test that the hook doesn't block forever
+	// Note: triggerHook is a private function, so we test via public methods
+	// We'll test that the hook doesn't block forever
 	done := make(chan bool)
 	go func() {
 		app.TriggerChannelOccupiedHook(channel)
@@ -580,4 +574,3 @@ func TestWebhookHeaders_AllPresent(t *testing.T) {
 		}
 	}
 }
-

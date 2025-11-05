@@ -26,7 +26,7 @@ var (
 )
 
 func newTestApp() *app.Application {
-	a := app.NewApplication("Test", strconv.Itoa(id), "123", "123", false, false, true, false, "")
+	a := app.NewApplication("Test", strconv.Itoa(id), "123", "123", false, false, true, false, "", nil)
 	id++
 
 	return a
@@ -40,10 +40,10 @@ func init() {
 	testApp.AddChannel(channel2.New("c2"))
 	testApp.AddChannel(channel2.New("private-c3"))
 
-	conn := connection.New("123.456", mocks.MockSocket{})
+	conn := connection.New("123.456", mocks.NewMockSocket())
 	_ = testApp.Subscribe(channel, conn, "{}")
 
-	conn = connection.New("321.654", mocks.MockSocket{})
+	conn = connection.New("321.654", mocks.NewMockSocket())
 	_ = testApp.Subscribe(channel, conn, "{}")
 
 	_storage := storage.NewInMemory()
@@ -646,10 +646,6 @@ func Test_Authentication_ValidSignature(t *testing.T) {
 	appID := testApp.AppID
 	method := "POST"
 	path := fmt.Sprintf("/apps/%s/events", appID)
-	queryParams := map[string]string{
-		"param1": "value1",
-		"param2": "value2",
-	}
 
 	// Create valid signature
 	queryString := "param1=value1&param2=value2"

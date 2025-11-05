@@ -23,12 +23,13 @@ const maxTimeout = 3 * time.Second
 
 // A webHook is sent as a HTTP POST request to the url which you specify.
 // The POST request payload (body) contains a JSON document, and follows the following format:
-// {
-//   "time_ms": 1327078148132
-//   "events": [
-//     { "name": "event_name", "some": "data" }
-//   ]
-// }
+//
+//	{
+//	  "time_ms": 1327078148132
+//	  "events": [
+//	    { "name": "event_name", "some": "data" }
+//	  ]
+//	}
 //
 // Security
 // Encryption
@@ -38,8 +39,8 @@ const maxTimeout = 3 * time.Second
 //
 // Since anyone could in principle send WebHooks to your application, it’s important to verify that these WebHooks originated from Pusher. Valid WebHooks will therefore contain these headers which contain a HMAC signature of the webHook payload (body):
 //
-//     X-Pusher-Key: The App Key.
-//     X-Pusher-Signature: A HMAC SHA256 hex digest formed by signing the POST payload (body) with the token’s secret.
+//	X-Pusher-Key: The App Key.
+//	X-Pusher-Signature: A HMAC SHA256 hex digest formed by signing the POST payload (body) with the token’s secret.
 type webHook struct {
 	TimeMs int64       `json:"time_ms"`
 	Events []hookEvent `json:"events"`
@@ -99,14 +100,15 @@ func (a *Application) TriggerChannelVacatedHook(c *channel.Channel) {
 }
 
 // TriggerClientEventHook client_events
-// {
-//   "name": "client_event",
-//   "channel": "name of the channel the event was published on",
-//   "event": "name of the event",
-//   "data": "data associated with the event",
-//   "socket_id": "socket_id of the sending socket",
-//   "user_id": "user_id associated with the sending socket" # Only for presence channels
-// }
+//
+//	{
+//	  "name": "client_event",
+//	  "channel": "name of the channel the event was published on",
+//	  "event": "name of the event",
+//	  "data": "data associated with the event",
+//	  "socket_id": "socket_id of the sending socket",
+//	  "user_id": "user_id associated with the sending socket" # Only for presence channels
+//	}
 func (a *Application) TriggerClientEventHook(c *channel.Channel, s *subscription.Subscription, clientEvent string, data interface{}) {
 	event := newClientHook(c, s, clientEvent, data)
 
@@ -123,11 +125,12 @@ func (a *Application) TriggerClientEventHook(c *channel.Channel, s *subscription
 }
 
 // TriggerMemberAddedHook member_added
-// {
-//   "name": "member_added",
-//   "channel": "presence-your_channel_name",
-//   "user_id": "a_user_id"
-// }
+//
+//	{
+//	  "name": "member_added",
+//	  "channel": "presence-your_channel_name",
+//	  "user_id": "a_user_id"
+//	}
 func (a *Application) TriggerMemberAddedHook(c *channel.Channel, s *subscription.Subscription) {
 	event := newMemberAddedHook(c, s)
 	ctx, cancel := context.WithTimeout(context.Background(), maxTimeout)
@@ -139,11 +142,12 @@ func (a *Application) TriggerMemberAddedHook(c *channel.Channel, s *subscription
 }
 
 // TriggerMemberRemovedHook member_removed
-// {
-//   "name": "member_removed",
-//   "channel": "presence-your_channel_name",
-//   "user_id": "a_user_id"
-// }
+//
+//	{
+//	  "name": "member_removed",
+//	  "channel": "presence-your_channel_name",
+//	  "user_id": "a_user_id"
+//	}
 func (a *Application) TriggerMemberRemovedHook(c *channel.Channel, s *subscription.Subscription) {
 	event := newMemberRemovedHook(c, s)
 	ctx, cancel := context.WithTimeout(context.Background(), maxTimeout)

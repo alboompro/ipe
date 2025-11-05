@@ -5,8 +5,6 @@
 package testutils
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -124,7 +122,6 @@ func (m *MockRedisClient) SubscribeToChannel(appID, channelID, socketID, channel
 		m.channelSubscriptions[subscriptionsKey] = append(m.channelSubscriptions[subscriptionsKey], socketID)
 	}
 
-	metadataKey := fmt.Sprintf("ipe:app:%s:channel:%s:subscription:%s", appID, channelID, socketID)
 	if m.subscriptions[channelID] == nil {
 		m.subscriptions[channelID] = make(map[string]*redis.SubscriptionMetadata)
 	}

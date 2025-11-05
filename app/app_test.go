@@ -17,7 +17,7 @@ import (
 var id = 0
 
 func newTestApp() *Application {
-	a := NewApplication("Test", strconv.Itoa(id), "123", "123", false, false, true, false, "")
+	a := NewApplication("Test", strconv.Itoa(id), "123", "123", false, false, true, false, "", nil)
 	id++
 
 	return a
@@ -169,7 +169,7 @@ func Test_New_Subscriber(t *testing.T) {
 		t.Errorf("len(Application.connections) == %d, wants %d", len(app.connections), 0)
 	}
 
-	conn := connection.New("1", mocks.MockSocket{})
+	conn := connection.New("1", mocks.NewMockSocket())
 	app.Connect(conn)
 
 	if len(app.connections) != 1 {
@@ -179,7 +179,7 @@ func Test_New_Subscriber(t *testing.T) {
 
 func Test_find_subscriber(t *testing.T) {
 	app := newTestApp()
-	conn := connection.New("1", mocks.MockSocket{})
+	conn := connection.New("1", mocks.NewMockSocket())
 	app.Connect(conn)
 
 	conn, err := app.FindConnection("1")
@@ -691,4 +691,3 @@ func TestSubscribe_PresenceChannelDuplicateUsers(t *testing.T) {
 		t.Errorf("Expected 2 subscriptions, got %d", channel.TotalSubscriptions())
 	}
 }
-

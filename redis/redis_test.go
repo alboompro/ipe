@@ -6,6 +6,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -345,8 +346,12 @@ func TestPublishEvent(t *testing.T) {
 	// Wait for message with timeout
 	select {
 	case msg := <-msgChan:
-		if msg.Event != event.Event {
-			t.Errorf("Expected event %s, got %s", event.Event, msg.Event)
+		var receivedEvent EventMessage
+		if err := json.Unmarshal([]byte(msg.Payload), &receivedEvent); err != nil {
+			t.Fatalf("Failed to unmarshal event message: %v", err)
+		}
+		if receivedEvent.Event != event.Event {
+			t.Errorf("Expected event %s, got %s", event.Event, receivedEvent.Event)
 		}
 	case <-time.After(2 * time.Second):
 		t.Error("Timeout waiting for published event")
