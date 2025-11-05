@@ -1,7 +1,7 @@
 .PHONY: help test test-race test-coverage test-integration lint fmt vet build clean install
 
 # Variables
-GO_VERSION := 1.21
+GO_VERSION := 1.25.3
 BINARY_NAME := ipe
 CMD_PATH := ./cmd
 COVERAGE_FILE := coverage.out
