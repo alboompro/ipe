@@ -309,16 +309,16 @@ func (a *Application) setupChannelPubSub(channelID string) {
 			}
 
 			// Find the channel and publish to local connections
-			channel, err := a.FindChannelByChannelID(channelID)
-			if err != nil {
-				logger.Error("Channel not found for Redis event", zap.Error(err), zap.String("channel_id", channelID))
+			ch, channelErr := a.FindChannelByChannelID(channelID)
+			if channelErr != nil {
+				logger.Error("Channel not found for Redis event", zap.Error(channelErr), zap.String("channel_id", channelID))
 				continue
 			}
 
 			// Convert event message back to events.Raw
-			eventData, err := json.Marshal(eventMsg.Data)
-			if err != nil {
-				logger.Error("Failed to marshal event data", zap.Error(err))
+			eventData, marshalErr := json.Marshal(eventMsg.Data)
+			if marshalErr != nil {
+				logger.Error("Failed to marshal event data", zap.Error(marshalErr))
 				continue
 			}
 
@@ -338,8 +338,8 @@ func (a *Application) setupChannelPubSub(channelID string) {
 				}
 			}
 
-			if err := channel.Publish(rawEvent, ignoreID); err != nil {
-				logger.Error("Failed to publish event from Redis", zap.Error(err), zap.String("channel_id", channelID))
+			if publishErr := ch.Publish(rawEvent, ignoreID); publishErr != nil {
+				logger.Error("Failed to publish event from Redis", zap.Error(publishErr), zap.String("channel_id", channelID))
 			}
 		}
 	}()
@@ -403,9 +403,9 @@ func (a *Application) Publish(c *channel.Channel, event events.Raw, ignore strin
 	// If Redis is available, publish to Redis Pub/Sub for cross-instance distribution
 	if a.redisClient != nil {
 		// Get all subscribers from Redis (including remote instances)
-		allSubscribers, err := a.redisClient.GetChannelSubscriptions(a.AppID, c.ID)
-		if err != nil {
-			logger.Error("Failed to get channel subscriptions from Redis", zap.Error(err), zap.String("channel_id", c.ID))
+		allSubscribers, redisErr := a.redisClient.GetChannelSubscriptions(a.AppID, c.ID)
+		if redisErr != nil {
+			logger.Error("Failed to get channel subscriptions from Redis", zap.Error(redisErr), zap.String("channel_id", c.ID))
 		} else {
 			// Check if there are subscribers on other instances
 			hasRemoteSubscribers := false

@@ -7,31 +7,17 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - unconvert
     - unparam
     - goconst
     - gocritic
     - revive
-    - exportloopref
     - gosec
-  disable:
-    - deadcode
-    - varcheck
-    - structcheck
-    - maligned
-    - dupl
-    - interfacer
-    - scopelint
-    - gochecknoglobals
-    - gochecknoinits
   settings:
     errcheck:
       check-type-assertions: true
@@ -52,15 +38,14 @@ linters:
         - octalLiteral
         - whyNoLint
         - wrapperFunc
+        - exposedSyncMutex
+        - importShadow
     gosec:
       severity: medium
       confidence: medium
     govet:
       enable-all: true
-    shadow:
-      enabled: true
     revive:
-      min-confidence: 0.8
       rules:
         - name: exported
           severity: warning

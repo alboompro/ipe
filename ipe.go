@@ -5,11 +5,8 @@
 package ipe
 
 import (
-	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -35,9 +32,7 @@ func Start(filename string) {
 
 	var conf config.File
 
-	rand.Seed(time.Now().Unix())
-
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		logger.ErrorWithErr("Failed to read config file", err, zap.String("filename", filename))
 		return
@@ -47,8 +42,8 @@ func Start(filename string) {
 	data = []byte(os.ExpandEnv(string(data)))
 
 	// Decoding config
-	if err := yaml.UnmarshalStrict(data, &conf); err != nil {
-		logger.ErrorWithErr("Failed to parse config file", err, zap.String("filename", filename))
+	if unmarshalErr := yaml.UnmarshalStrict(data, &conf); unmarshalErr != nil {
+		logger.ErrorWithErr("Failed to parse config file", unmarshalErr, zap.String("filename", filename))
 		return
 	}
 

@@ -21,6 +21,12 @@ import (
 	"ipe/utils"
 )
 
+const (
+	userCountAttr    = "user_count"
+	presencePrefix   = "presence-"
+	appNotFoundError = "Could not found an app with app_id: %s"
+)
+
 // // Maximum event size permitted 10 kB
 // See: http://blogs.gnome.org/cneumair/2008/09/30/1-kb-1024-bytes-no-1-kb-1000-bytes/
 const maxDataEventSize = 10 * 1000
@@ -54,7 +60,7 @@ func prepareQueryString(params url.Values) string {
 //   - The request path (e.g. /some/resource)
 //   - The query parameters sorted by key, with keys converted to lowercase, then joined as in the query string.
 //     Note that the string must not be url escaped (e.g. given the keys auth_key: foo, Name: Something else, you get auth_key=foo&name=Something else)
-func Authentication(storage storage.Storage) func(http.Handler) http.Handler {
+func Authentication(storageInstance storage.Storage) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			var (
@@ -62,7 +68,7 @@ func Authentication(storage storage.Storage) func(http.Handler) http.Handler {
 				appID    = pathVars["app_id"]
 			)
 
-			app, err := storage.GetAppByAppID(appID)
+			app, err := storageInstance.GetAppByAppID(appID)
 
 			if err != nil {
 				logger.Error("Application not found for authentication", zap.Error(err), zap.String("app_id", appID))
@@ -92,7 +98,7 @@ func Authentication(storage storage.Storage) func(http.Handler) http.Handler {
 }
 
 // CheckAppDisabled Check if the application is disabled
-func CheckAppDisabled(storage storage.Storage) func(http.Handler) http.Handler {
+func CheckAppDisabled(storageInstance storage.Storage) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			var (
@@ -100,7 +106,7 @@ func CheckAppDisabled(storage storage.Storage) func(http.Handler) http.Handler {
 				appID    = pathVars["app_id"]
 			)
 
-			currentApp, err := storage.GetAppByAppID(appID)
+			currentApp, err := storageInstance.GetAppByAppID(appID)
 
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Could not found an app with app_id: %s", appID), http.StatusForbidden)
@@ -122,8 +128,8 @@ func CheckAppDisabled(storage storage.Storage) func(http.Handler) http.Handler {
 type PostEvents struct{ storage storage.Storage }
 
 // NewPostEvents return a new PostEvents handler
-func NewPostEvents(storage storage.Storage) *PostEvents {
-	return &PostEvents{storage: storage}
+func NewPostEvents(storageInstance storage.Storage) *PostEvents {
+	return &PostEvents{storage: storageInstance}
 }
 
 // ServeHTTP An event consists of a name and data (typically JSON) which may be sent to all subscribers to a particular channel or channels.
@@ -150,7 +156,8 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	app, err := h.storage.GetAppByAppID(appID)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not found an app with app_id: %s", appID), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(appNotFoundError, appID), http.StatusBadRequest)
+		return
 	}
 
 	var input struct {
@@ -175,7 +182,7 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.Info("Publishing events", zap.Strings("channels", input.Channels), zap.String("event_name", input.Name), zap.String("app_id", appID))
-	if len(input.Channel) > 0 && len(input.Channels) == 0 {
+	if input.Channel != "" && len(input.Channels) == 0 {
 		input.Channels = append(input.Channels, input.Channel)
 	}
 
@@ -199,8 +206,8 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type GetChannels struct{ storage storage.Storage }
 
 // NewGetChannels return a new GetChannels handler
-func NewGetChannels(storage storage.Storage) *GetChannels {
-	return &GetChannels{storage: storage}
+func NewGetChannels(storageInstance storage.Storage) *GetChannels {
+	return &GetChannels{storage: storageInstance}
 }
 
 // ServeHTTP Allows fetching a hash of occupied channels (optionally filtered by prefix),
@@ -236,14 +243,14 @@ func (h *GetChannels) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestedUserCount := false
 
 	for _, a := range attributes {
-		if a == "user_count" {
+		if a == userCountAttr {
 			requestedUserCount = true
 		}
 	}
 
 	// If an attribute such as user_count is requested, and the request is not limited
 	// to presence channels, the API will return an error (400 code)
-	if requestedUserCount && filter != "presence-" {
+	if requestedUserCount && filter != presencePrefix {
 		http.Error(w, "Attribute user_count is restricted to presence channels", http.StatusBadRequest)
 		return
 	}
@@ -251,7 +258,8 @@ func (h *GetChannels) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	app, err := h.storage.GetAppByAppID(appID)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not found an app with app_id: %s", appID), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(appNotFoundError, appID), http.StatusBadRequest)
+		return
 	}
 
 	channels := make(map[string]interface{})
@@ -298,8 +306,8 @@ func (h *GetChannels) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type GetChannel struct{ storage storage.Storage }
 
 // NewGetChannel return a new GetChannel handler
-func NewGetChannel(storage storage.Storage) *GetChannel {
-	return &GetChannel{storage: storage}
+func NewGetChannel(storageInstance storage.Storage) *GetChannel {
+	return &GetChannel{storage: storageInstance}
 }
 
 // ServeHTTP Fetch info for one channel
@@ -326,7 +334,8 @@ func (h *GetChannel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	app, err := h.storage.GetAppByAppID(appID)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not found an app with app_id: %s", appID), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(appNotFoundError, appID), http.StatusBadRequest)
+		return
 	}
 
 	// Channel name could not be empty
@@ -393,8 +402,8 @@ func (h *GetChannel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type GetChannelUsers struct{ storage storage.Storage }
 
 // NewGetChannelUsers return a new GetChannelUsers handler
-func NewGetChannelUsers(storage storage.Storage) *GetChannelUsers {
-	return &GetChannelUsers{storage: storage}
+func NewGetChannelUsers(storageInstance storage.Storage) *GetChannelUsers {
+	return &GetChannelUsers{storage: storageInstance}
 }
 
 // ServeHTTP Allowed only for presence-channels
@@ -426,7 +435,8 @@ func (h *GetChannelUsers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	app, err := h.storage.GetAppByAppID(appID)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not found an app with app_id: %s", appID), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(appNotFoundError, appID), http.StatusBadRequest)
+		return
 	}
 
 	// Get the channel

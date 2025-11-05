@@ -266,25 +266,25 @@ func (c *Channel) Unsubscribe(conn *connection.Connection) error {
 }
 
 // PublishMemberAddedEvent Publish a MemberAddedEvent to all subscriptions
-func (c *Channel) PublishMemberAddedEvent(data string, subscription *subscription.Subscription) {
+func (c *Channel) PublishMemberAddedEvent(data string, sub *subscription.Subscription) {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, subs := range c.subscriptions {
-		if subs != subscription {
+		if subs != sub {
 			subs.Connection.Publish(events.NewMemberAdded(c.ID, data))
 		}
 	}
 }
 
 // PublishMemberRemovedEvent Publish a MemberRemovedEvent to all subscriptions
-func (c *Channel) PublishMemberRemovedEvent(subscription *subscription.Subscription) {
+func (c *Channel) PublishMemberRemovedEvent(sub *subscription.Subscription) {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, subs := range c.subscriptions {
-		if subs != subscription {
-			subs.Connection.Publish(events.NewMemberRemoved(c.ID, subscription.ID))
+		if subs != sub {
+			subs.Connection.Publish(events.NewMemberRemoved(c.ID, sub.ID))
 		}
 	}
 }
@@ -312,11 +312,9 @@ func (c *Channel) Publish(event events.Raw, ignore string) error {
 	for _, subs := range c.subscriptions {
 		if subs.Connection.SocketID != ignore {
 			subs.Connection.Publish(events.NewResponse(event.Event, event.Channel, v))
-		} else {
-			if utils.IsClientEvent(event.Event) {
-				for _, hook := range c.clientEventListeners {
-					hook(c, subs, event.Event, v)
-				}
+		} else if utils.IsClientEvent(event.Event) {
+			for _, hook := range c.clientEventListeners {
+				hook(c, subs, event.Event, v)
 			}
 		}
 	}

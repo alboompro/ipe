@@ -240,7 +240,7 @@ func (m *MockRedisClient) SubscribeToChannelEvents(appID, channelID string) (<-c
 }
 
 // StorePresenceData stores presence channel data in Redis
-func (m *MockRedisClient) StorePresenceData(appID, channelID, socketID, userID string, userInfo string) error {
+func (m *MockRedisClient) StorePresenceData(appID, channelID, socketID, userID, userInfo string) error {
 	if m.simulateOperationErr {
 		return fmt.Errorf("simulated error")
 	}

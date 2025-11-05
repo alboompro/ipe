@@ -260,7 +260,7 @@ type MemberRemoved struct {
 }
 
 // NewMemberRemoved returns a new MemberRemoved event
-func NewMemberRemoved(channel string, userID string) MemberRemoved {
+func NewMemberRemoved(channel, userID string) MemberRemoved {
 	data, err := json.Marshal(struct {
 		UserID string `json:"user_id"`
 	}{

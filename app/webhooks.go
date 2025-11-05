@@ -173,22 +173,17 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 
 		hook.Events = append(hook.Events, event)
 
-		var js []byte
-		var err error
+		js, marshalErr := json.Marshal(hook)
 
-		js, err = json.Marshal(hook)
-
-		if err != nil {
-			logger.Error("Failed to marshal webhook JSON", zap.Error(err))
+		if marshalErr != nil {
+			logger.Error("Failed to marshal webhook JSON", zap.Error(marshalErr))
 			return
 		}
 
-		var req *http.Request
+		req, reqErr := http.NewRequest("POST", a.URLWebHook, bytes.NewReader(js))
 
-		req, err = http.NewRequest("POST", a.URLWebHook, bytes.NewReader(js))
-
-		if err != nil {
-			logger.Error("Failed to create webhook request", zap.Error(err))
+		if reqErr != nil {
+			logger.Error("Failed to create webhook request", zap.Error(reqErr))
 			return
 		}
 
@@ -206,8 +201,8 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 		// See: http://devs.cloudimmunity.com/gotchas-and-common-mistakes-in-go-golang/index.html#close_http_resp_body
 		if resp != nil {
 			defer func() {
-				if err := resp.Body.Close(); err != nil {
-					logger.Error("Error closing webhook response body", zap.Error(err))
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					logger.Error("Error closing webhook response body", zap.Error(closeErr))
 				}
 			}()
 		}

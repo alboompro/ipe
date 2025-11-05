@@ -271,7 +271,7 @@ func (c *Client) SubscribeToChannelEvents(appID, channelID string) (<-chan *redi
 }
 
 // StorePresenceData stores presence channel data in Redis
-func (c *Client) StorePresenceData(appID, channelID, socketID, userID string, userInfo string) error {
+func (c *Client) StorePresenceData(appID, channelID, socketID, userID, userInfo string) error {
 	presenceKey := fmt.Sprintf("ipe:app:%s:channel:%s:presence", appID, channelID)
 	err := c.rdb.HSet(c.ctx, presenceKey, socketID, userID).Err()
 	if err != nil {

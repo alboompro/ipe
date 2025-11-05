@@ -34,8 +34,8 @@ func Init() error {
 func GetLogger() *zap.Logger {
 	if globalLogger == nil {
 		// Fallback to development logger if not initialized
-		logger, _ := zap.NewDevelopment()
-		return logger
+		devLogger, _ := zap.NewDevelopment()
+		return devLogger
 	}
 	return globalLogger
 }
@@ -68,7 +68,9 @@ func Error(msg string, fields ...zap.Field) {
 
 // ErrorWithErr logs an error message with an error and optional fields
 func ErrorWithErr(msg string, err error, fields ...zap.Field) {
-	allFields := append(fields, zap.Error(err))
+	allFields := make([]zap.Field, 0, len(fields)+1)
+	allFields = append(allFields, fields...)
+	allFields = append(allFields, zap.Error(err))
 	GetLogger().Error(msg, allFields...)
 }
 
