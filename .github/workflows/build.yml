@@ -1,47 +1,22 @@
-name: Build
+name: Build and Release
 
 on:
   push:
     branches: [ main, master ]
-  tags:
-    - 'v*'
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-            goos: linux
-            goarch: amd64
-          - os: ubuntu-latest
-            arch: arm64
-            goos: linux
-            goarch: arm64
-          - os: windows-latest
-            arch: amd64
-            goos: windows
-            goarch: amd64
-          - os: macos-latest
-            arch: amd64
-            goos: darwin
-            goarch: amd64
-          - os: macos-latest
-            arch: arm64
-            goos: darwin
-            goarch: arm64
-
+    name: Build Linux Binary for Release
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -54,6 +29,16 @@ jobs:
           go-version-file: 'go.mod'
           cache-dependency-path: go.sum
 
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Get version information
         id: version
         run: |
@@ -64,8 +49,8 @@ jobs:
 
       - name: Build binary
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: linux
+          GOARCH: amd64
           CGO_ENABLED: 0
         run: |
           go build -v \
@@ -73,20 +58,11 @@ jobs:
             -o ipe \
             ./cmd
 
-      - name: Set binary name
-        run: |
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            mv ipe ipe.exe
-            echo "BINARY_NAME=ipe.exe" >> $GITHUB_ENV
-          else
-            echo "BINARY_NAME=ipe" >> $GITHUB_ENV
-          fi
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ipe-${{ matrix.os }}-${{ matrix.arch }}
-          path: ${{ env.BINARY_NAME }}
+          name: ipe-linux-amd64
+          path: ipe
           retention-days: 30
 
   release:
@@ -97,15 +73,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create checksums
+      - name: Create checksum
         run: |
           cd artifacts
-          find . -type f -name "ipe*" -exec sha256sum {} \; > checksums.txt
+          sha256sum ipe > ipe-linux-amd64.sha256
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -114,4 +90,3 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-
