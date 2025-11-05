@@ -11,14 +11,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
-	log "github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 
 	"ipe/app"
 	"ipe/connection"
 	"ipe/events"
+	"ipe/logger"
 	"ipe/storage"
 	"ipe/utils"
 )
@@ -32,7 +34,18 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(_ *http.Request) bool {
 		return true
 	},
+	// Enable compression for better performance
+	EnableCompression: true,
 }
+
+const (
+	// WriteWait is the time allowed to write a message to the peer
+	WriteWait = 10 * time.Second
+	// PongWait is the time allowed to read the next pong message from the peer
+	PongWait = 60 * time.Second
+	// PingPeriod is how often to send pings to peer (must be less than PongWait)
+	PingPeriod = (PongWait * 9) / 10
+)
 
 // Websocket handler for real time websocket messages
 type Websocket struct {
@@ -50,13 +63,13 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if conn != nil {
 			if err := conn.Close(); err != nil {
-				log.Errorf("closing the websocket connection %+v", err)
+				logger.Error("Error closing websocket connection", zap.Error(err))
 			}
 		}
 	}()
 
 	if err != nil {
-		log.Error(err)
+		logger.Error("Failed to upgrade websocket connection", zap.Error(err))
 		return
 	}
 
@@ -68,7 +81,7 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_app, err := h.storage.GetAppByKey(appKey)
 
 	if err != nil {
-		log.Error(err)
+		logger.Error("Application not found", zap.Error(err), zap.String("app_key", appKey))
 		emitError(applicationDoesNotExists, conn)
 		return
 	}
@@ -84,11 +97,37 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMessages(conn *websocket.Conn, sessionID string, app *app.Application) {
+	// Set read deadline
+	conn.SetReadDeadline(time.Now().Add(PongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(PongWait))
+		return nil
+	})
+
+	// Start ping ticker
+	pingTicker := time.NewTicker(PingPeriod)
+	defer pingTicker.Stop()
+
+	// Start a goroutine to send ping messages
+	go func() {
+		for {
+			select {
+			case <-pingTicker.C:
+				conn.SetWriteDeadline(time.Now().Add(WriteWait))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
 	var event struct {
 		Event string `json:"event"`
 	}
 
 	for {
+		// Set read deadline for next message
+		conn.SetReadDeadline(time.Now().Add(PongWait))
 		_, message, err := conn.ReadMessage()
 
 		if err != nil {
@@ -101,7 +140,7 @@ func handleMessages(conn *websocket.Conn, sessionID string, app *app.Application
 			return
 		}
 
-		log.Infof("websocket: Handling %s event", event.Event)
+		logger.Info("Handling websocket event", zap.String("event", event.Event), zap.String("socket_id", sessionID))
 
 		switch event.Event {
 		case "pusher:ping":
@@ -123,12 +162,12 @@ func emitError(err *websocketError, conn *websocket.Conn) {
 	event := events.NewError(err.Code, err.Msg)
 
 	if err := conn.WriteJSON(event); err != nil {
-		log.Error(err)
+		logger.Error("Failed to write error to websocket", zap.Error(err))
 	}
 }
 
 func handleError(conn *websocket.Conn, sessionID string, app *app.Application, err error) {
-	log.Errorf("%+v", err)
+	logger.Error("Websocket error", zap.Error(err), zap.String("socket_id", sessionID), zap.String("app_id", app.AppID))
 	if err == io.EOF {
 		onClose(sessionID, app)
 	} else if _, ok := err.(*websocket.CloseError); ok {
@@ -179,7 +218,9 @@ func onClose(sessionID string, app *app.Application) {
 }
 
 func handlePing(conn *websocket.Conn) {
+	conn.SetWriteDeadline(time.Now().Add(WriteWait))
 	if err := conn.WriteJSON(events.NewPong()); err != nil {
+		logger.Error("Failed to write pong", zap.Error(err))
 		emitError(reconnectImmediately, conn)
 	}
 }
@@ -192,7 +233,7 @@ func handleClientEvent(conn *websocket.Conn, sessionID string, app *app.Applicat
 	clientEvent := events.Raw{}
 
 	if err := json.Unmarshal(message, &clientEvent); err != nil {
-		log.Error(err)
+		logger.Error("Failed to unmarshal client event", zap.Error(err))
 		emitError(reconnectImmediately, conn)
 		return
 	}
@@ -210,7 +251,7 @@ func handleClientEvent(conn *websocket.Conn, sessionID string, app *app.Applicat
 	}
 
 	if err := app.Publish(channel, clientEvent, sessionID); err != nil {
-		log.Error(err)
+		logger.Error("Failed to publish client event", zap.Error(err), zap.String("channel", clientEvent.Channel), zap.String("socket_id", sessionID))
 		emitError(reconnectImmediately, conn)
 		return
 	}
@@ -283,7 +324,7 @@ func handleSubscribe(conn *websocket.Conn, sessionID string, app *app.Applicatio
 	}
 
 	channel := app.FindOrCreateChannelByChannelID(channelName)
-	log.Info(subscribeEvent.Data.ChannelData)
+	logger.Debug("Channel subscription data", zap.String("channel_id", channelName), zap.String("channel_data", subscribeEvent.Data.ChannelData))
 
 	if err := app.Subscribe(channel, _connection, subscribeEvent.Data.ChannelData); err != nil {
 		emitError(reconnectImmediately, conn)

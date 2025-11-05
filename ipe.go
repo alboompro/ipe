@@ -11,14 +11,16 @@ import (
 	"os"
 	"time"
 
-	log "github.com/golang/glog"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
 	"ipe/api"
 	"ipe/app"
 	"ipe/config"
+	"ipe/logger"
+	"ipe/redis"
 	"ipe/storage"
 	"ipe/websockets"
 )
@@ -26,13 +28,18 @@ import (
 // Start Parse the configuration file and starts the ipe server
 // It Panic if could not start the HTTP or HTTPS server
 func Start(filename string) {
+	// Initialize structured logging
+	if err := logger.Init(); err != nil {
+		panic(err)
+	}
+
 	var conf config.File
 
 	rand.Seed(time.Now().Unix())
 
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Error(err)
+		logger.ErrorWithErr("Failed to read config file", err, zap.String("filename", filename))
 		return
 	}
 
@@ -41,9 +48,20 @@ func Start(filename string) {
 
 	// Decoding config
 	if err := yaml.UnmarshalStrict(data, &conf); err != nil {
-		log.Error(err)
+		logger.ErrorWithErr("Failed to parse config file", err, zap.String("filename", filename))
 		return
 	}
+
+	// Initialize Redis client (required for scaling)
+	redisClient, err := redis.NewClient()
+	if err != nil {
+		logger.ErrorWithErr("Failed to initialize Redis client", err)
+		return
+	}
+	// Note: We don't close Redis client here as it should stay alive for the lifetime of the server
+	// The connection will be closed when the process exits
+
+	logger.Info("Redis client initialized", zap.String("instance_id", redisClient.GetInstanceID()))
 
 	// Using a in memory database
 	inMemoryStorage := storage.NewInMemory()
@@ -60,10 +78,11 @@ func Start(filename string) {
 			a.UserEvents,
 			a.WebHooks.Enabled,
 			a.WebHooks.URL,
+			redisClient,
 		)
 
 		if err := inMemoryStorage.AddApp(application); err != nil {
-			log.Error(err)
+			logger.ErrorWithErr("Failed to add application", err, zap.String("app_id", a.AppID), zap.String("app_name", a.Name))
 			return
 		}
 	}
@@ -96,11 +115,11 @@ func Start(filename string) {
 
 	if conf.SSL.Enabled {
 		go func() {
-			log.Infof("Starting HTTPS service on %s ...", conf.SSL.Host)
-			log.Fatal(http.ListenAndServeTLS(conf.SSL.Host, conf.SSL.CertFile, conf.SSL.KeyFile, router))
+			logger.Info("Starting HTTPS service", zap.String("host", conf.SSL.Host))
+			logger.Fatal("HTTPS server failed", zap.Error(http.ListenAndServeTLS(conf.SSL.Host, conf.SSL.CertFile, conf.SSL.KeyFile, router)))
 		}()
 	}
 
-	log.Infof("Starting HTTP service on %s ...", conf.Host)
-	log.Fatal(http.ListenAndServe(conf.Host, router))
+	logger.Info("Starting HTTP service", zap.String("host", conf.Host))
+	logger.Fatal("HTTP server failed", zap.Error(http.ListenAndServe(conf.Host, router)))
 }

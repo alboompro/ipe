@@ -12,10 +12,11 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/golang/glog"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 
 	"ipe/events"
+	"ipe/logger"
 	"ipe/storage"
 	"ipe/utils"
 )
@@ -64,7 +65,7 @@ func Authentication(storage storage.Storage) func(http.Handler) http.Handler {
 			app, err := storage.GetAppByAppID(appID)
 
 			if err != nil {
-				log.Error(err)
+				logger.Error("Application not found for authentication", zap.Error(err), zap.String("app_id", appID))
 				http.Error(w, "Not authorized", http.StatusUnauthorized)
 				return
 			}
@@ -81,7 +82,7 @@ func Authentication(storage storage.Storage) func(http.Handler) http.Handler {
 			if utils.HashMAC([]byte(toSign), []byte(app.Secret)) == signature {
 				next.ServeHTTP(w, r)
 			} else {
-				log.Error("Not authorized")
+				logger.Warn("Authentication failed", zap.String("app_id", appID))
 				http.Error(w, "Not authorized", http.StatusUnauthorized)
 			}
 		}
@@ -173,7 +174,7 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info(input.Channels)
+	logger.Info("Publishing events", zap.Strings("channels", input.Channels), zap.String("event_name", input.Name), zap.String("app_id", appID))
 	if len(input.Channel) > 0 && len(input.Channels) == 0 {
 		input.Channels = append(input.Channels, input.Channel)
 	}
@@ -182,7 +183,7 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		channel := app.FindOrCreateChannelByChannelID(c)
 
 		if err := app.Publish(channel, events.Raw{Event: input.Name, Channel: c, Data: input.Data}, input.SocketID); err != nil {
-			log.Errorf("error publishing event %+v", err)
+			logger.Error("Failed to publish event", zap.Error(err), zap.String("channel", c), zap.String("event_name", input.Name))
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
@@ -190,7 +191,7 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("{}")); err != nil {
-		log.Errorf("unexpected error while writing into response %+v", err)
+		logger.Error("Unexpected error writing response", zap.Error(err))
 	}
 }
 
@@ -287,7 +288,7 @@ func (h *GetChannels) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	js["channels"] = channels
 
 	if err := json.NewEncoder(w).Encode(js); err != nil {
-		log.Error(err)
+		logger.Error("Failed to encode channels response", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -381,7 +382,7 @@ func (h *GetChannel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(dtoChannel); err != nil {
-		log.Error(err)
+		logger.Error("Failed to encode channel response", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
@@ -449,6 +450,6 @@ func (h *GetChannelUsers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		log.Error(err)
+		logger.Error("Failed to encode channel users response", zap.Error(err))
 	}
 }

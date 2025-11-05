@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/golang/glog"
-
+	"go.uber.org/zap"
 	"ipe/channel"
+	"ipe/logger"
 	"ipe/subscription"
 	"ipe/utils"
 )
@@ -82,7 +82,7 @@ func (a *Application) TriggerChannelOccupiedHook(c *channel.Channel) {
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
@@ -94,7 +94,7 @@ func (a *Application) TriggerChannelVacatedHook(c *channel.Channel) {
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
@@ -118,7 +118,7 @@ func (a *Application) TriggerClientEventHook(c *channel.Channel, s *subscription
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
@@ -134,7 +134,7 @@ func (a *Application) TriggerMemberAddedHook(c *channel.Channel, s *subscription
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
@@ -150,20 +150,20 @@ func (a *Application) TriggerMemberRemovedHook(c *channel.Channel, s *subscripti
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
 func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 	if !a.WebHooks {
-		log.Infof("webhook are not enabled for app: %s", a.Name)
+		logger.Info("Webhooks not enabled", zap.String("app_name", a.Name), zap.String("app_id", a.AppID))
 		return fmt.Errorf("webhooks are not enabled for app: %s", a.Name)
 	}
 
 	done := make(chan bool)
 
 	go func() {
-		log.Infof("Triggering %s event", event.Name)
+		logger.Info("Triggering webhook event", zap.String("event_name", event.Name), zap.String("channel", event.Channel), zap.String("app_id", a.AppID))
 
 		hook := webHook{TimeMs: time.Now().Unix()}
 
@@ -175,7 +175,7 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 		js, err = json.Marshal(hook)
 
 		if err != nil {
-			log.Errorf("Error decoding json: %+v", err)
+			logger.Error("Failed to marshal webhook JSON", zap.Error(err))
 			return
 		}
 
@@ -184,7 +184,7 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 		req, err = http.NewRequest("POST", a.URLWebHook, bytes.NewReader(js))
 
 		if err != nil {
-			log.Errorf("Error creating request: %+v", err)
+			logger.Error("Failed to create webhook request", zap.Error(err))
 			return
 		}
 
@@ -195,8 +195,7 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 		req.Header.Set("X-Pusher-Key", a.Key)
 		req.Header.Set("X-Pusher-Signature", utils.HashMAC(js, []byte(a.Secret)))
 
-		log.V(1).Infof("%+v", req.Header)
-		log.V(1).Infof("%+v", string(js))
+		logger.Debug("Sending webhook", zap.String("url", a.URLWebHook), zap.String("event_name", event.Name))
 
 		resp, err := http.DefaultClient.Do(req)
 
@@ -204,13 +203,15 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 		if resp != nil {
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
-					log.Errorf("error closing response body %+v", err)
+					logger.Error("Error closing webhook response body", zap.Error(err))
 				}
 			}()
 		}
 
 		if err != nil {
-			log.Errorf("error posting %s event: %+v", event.Name, err)
+			logger.Error("Failed to post webhook event", zap.Error(err), zap.String("event_name", event.Name))
+		} else {
+			logger.LogChannelEvent(event.Channel, string(js), fmt.Sprintf("Webhook %s sent successfully", event.Name), resp.StatusCode >= 200 && resp.StatusCode < 300)
 		}
 
 		// Successfully terminated

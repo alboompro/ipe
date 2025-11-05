@@ -5,16 +5,18 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
 	"sync"
 
-	log "github.com/golang/glog"
-
+	"go.uber.org/zap"
 	"ipe/channel"
 	"ipe/connection"
 	"ipe/events"
+	"ipe/logger"
+	"ipe/redis"
 	"ipe/subscription"
 )
 
@@ -35,6 +37,12 @@ type Application struct {
 	channels    map[string]*channel.Channel
 	connections map[string]*connection.Connection
 
+	redisClient *redis.Client
+
+	// Channel pub/sub subscribers for cross-instance events
+	channelSubscribers map[string]struct{}
+	subscribersMutex   sync.RWMutex
+
 	Stats *expvar.Map `json:"-"`
 }
 
@@ -49,18 +57,21 @@ func NewApplication(
 	userEvents,
 	webHooks bool,
 	webHookURL string,
+	redisClient *redis.Client,
 ) *Application {
 
 	a := &Application{
-		Name:       name,
-		AppID:      appID,
-		Key:        key,
-		Secret:     secret,
-		OnlySSL:    onlySSL,
-		Enabled:    enabled,
-		UserEvents: userEvents,
-		WebHooks:   webHooks,
-		URLWebHook: webHookURL,
+		Name:               name,
+		AppID:              appID,
+		Key:                key,
+		Secret:             secret,
+		OnlySSL:            onlySSL,
+		Enabled:            enabled,
+		UserEvents:         userEvents,
+		WebHooks:           webHooks,
+		URLWebHook:         webHookURL,
+		redisClient:       redisClient,
+		channelSubscribers: make(map[string]struct{}),
 	}
 
 	a.connections = make(map[string]*connection.Connection)
@@ -134,12 +145,12 @@ func (a *Application) PublicChannels() []*channel.Channel {
 
 // Disconnect Socket
 func (a *Application) Disconnect(socketID string) {
-	log.Infof("disconnecting socket %+v", socketID)
+	logger.Info("Disconnecting socket", zap.String("socket_id", socketID), zap.String("app_id", a.AppID))
 
 	conn, err := a.FindConnection(socketID)
 
 	if err != nil {
-		log.Infof("socket not found, %+v", err)
+		logger.Info("Socket not found during disconnect", zap.String("socket_id", socketID), zap.Error(err))
 		return
 	}
 
@@ -147,9 +158,16 @@ func (a *Application) Disconnect(socketID string) {
 	for _, c := range a.channels {
 		if c.IsSubscribed(conn) {
 			if err := c.Unsubscribe(conn); err != nil {
-				log.Errorf("error while calling Channel.Unsubscribe, %+v", err)
+				logger.Error("Error while calling Channel.Unsubscribe", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", socketID))
 				continue
 			}
+		}
+	}
+
+	// Remove from Redis
+	if a.redisClient != nil {
+		if err := a.redisClient.UnregisterConnection(a.AppID, socketID); err != nil {
+			logger.Error("Failed to unregister connection from Redis", zap.Error(err), zap.String("socket_id", socketID))
 		}
 	}
 
@@ -171,7 +189,15 @@ func (a *Application) Disconnect(socketID string) {
 
 // Connect a new Subscriber
 func (a *Application) Connect(conn *connection.Connection) {
-	log.Infof("adding a new Connection %s to Application %s", conn.SocketID, a.Name)
+	logger.Info("Adding new connection", zap.String("socket_id", conn.SocketID), zap.String("app_id", a.AppID), zap.String("app_name", a.Name))
+
+	// Register connection in Redis
+	if a.redisClient != nil {
+		if err := a.redisClient.RegisterConnection(a.AppID, conn.SocketID); err != nil {
+			logger.Error("Failed to register connection in Redis", zap.Error(err), zap.String("socket_id", conn.SocketID))
+		}
+	}
+
 	a.Lock()
 	defer a.Unlock()
 
@@ -196,7 +222,15 @@ func (a *Application) FindConnection(socketID string) (*connection.Connection, e
 
 // RemoveChannel removes the Channel from Application
 func (a *Application) RemoveChannel(c *channel.Channel) {
-	log.Infof("remove the Channel %s from Application %s", c.ID, a.Name)
+	logger.Info("Removing channel", zap.String("channel_id", c.ID), zap.String("app_id", a.AppID), zap.String("app_name", a.Name))
+
+	// Clean up Redis Pub/Sub subscriber
+	if a.redisClient != nil {
+		a.subscribersMutex.Lock()
+		delete(a.channelSubscribers, c.ID)
+		a.subscribersMutex.Unlock()
+	}
+
 	a.Lock()
 	defer a.Unlock()
 
@@ -219,12 +253,17 @@ func (a *Application) RemoveChannel(c *channel.Channel) {
 
 // AddChannel Add a new Channel to this APP
 func (a *Application) AddChannel(c *channel.Channel) {
-	log.Infof("adding a new Channel %s to Application %s", c.ID, a.Name)
+	logger.Info("Adding new channel", zap.String("channel_id", c.ID), zap.String("app_id", a.AppID), zap.String("app_name", a.Name))
 
 	a.Lock()
 	defer a.Unlock()
 
 	a.channels[c.ID] = c
+
+	// Set up Redis Pub/Sub listener for this channel if Redis is available
+	if a.redisClient != nil {
+		a.setupChannelPubSub(c.ID)
+	}
 
 	if c.IsPresence() {
 		a.Stats.Add("TotalPresenceChannels", 1)
@@ -239,6 +278,71 @@ func (a *Application) AddChannel(c *channel.Channel) {
 	}
 
 	a.Stats.Add("TotalChannels", 1)
+}
+
+// setupChannelPubSub sets up a Redis Pub/Sub listener for a channel
+func (a *Application) setupChannelPubSub(channelID string) {
+	a.subscribersMutex.Lock()
+	defer a.subscribersMutex.Unlock()
+
+	// Check if already subscribed
+	if _, exists := a.channelSubscribers[channelID]; exists {
+		return
+	}
+
+	// Subscribe to Redis Pub/Sub
+	msgChan, err := a.redisClient.SubscribeToChannelEvents(a.AppID, channelID)
+	if err != nil {
+		logger.Error("Failed to subscribe to channel events", zap.Error(err), zap.String("channel_id", channelID))
+		return
+	}
+
+	a.channelSubscribers[channelID] = struct{}{}
+
+	// Start goroutine to handle incoming messages
+	go func() {
+		for msg := range msgChan {
+			var eventMsg redis.EventMessage
+			if err := json.Unmarshal([]byte(msg.Payload), &eventMsg); err != nil {
+				logger.Error("Failed to unmarshal event message from Redis", zap.Error(err))
+				continue
+			}
+
+			// Find the channel and publish to local connections
+			channel, err := a.FindChannelByChannelID(channelID)
+			if err != nil {
+				logger.Error("Channel not found for Redis event", zap.Error(err), zap.String("channel_id", channelID))
+				continue
+			}
+
+			// Convert event message back to events.Raw
+			eventData, err := json.Marshal(eventMsg.Data)
+			if err != nil {
+				logger.Error("Failed to marshal event data", zap.Error(err))
+				continue
+			}
+
+			rawEvent := events.Raw{
+				Event:   eventMsg.Event,
+				Channel: eventMsg.Channel,
+				Data:    json.RawMessage(eventData),
+			}
+
+			// Publish to local connections (skip the ignore ID if it's a local connection)
+			// Only ignore if it's from this instance (to avoid duplicate)
+			ignoreID := ""
+			if eventMsg.IgnoreID != "" {
+				instanceID, err := a.redisClient.GetConnectionInstance(a.AppID, eventMsg.IgnoreID)
+				if err == nil && instanceID == a.redisClient.GetInstanceID() {
+					ignoreID = eventMsg.IgnoreID
+				}
+			}
+
+			if err := channel.Publish(rawEvent, ignoreID); err != nil {
+				logger.Error("Failed to publish event from Redis", zap.Error(err), zap.String("channel_id", channelID))
+			}
+		}
+	}()
 }
 
 // FindOrCreateChannelByChannelID Returns a Channel from this Application
@@ -290,15 +394,79 @@ func (a *Application) FindChannelByChannelID(n string) (*channel.Channel, error)
 func (a *Application) Publish(c *channel.Channel, event events.Raw, ignore string) error {
 	a.Stats.Add("TotalUniqueMessages", 1)
 
-	return c.Publish(event, ignore)
+	// Publish to local connections first
+	err := c.Publish(event, ignore)
+	if err != nil {
+		logger.Error("Failed to publish to local connections", zap.Error(err), zap.String("channel_id", c.ID))
+	}
+
+	// If Redis is available, publish to Redis Pub/Sub for cross-instance distribution
+	if a.redisClient != nil {
+		// Get all subscribers from Redis (including remote instances)
+		allSubscribers, err := a.redisClient.GetChannelSubscriptions(a.AppID, c.ID)
+		if err != nil {
+			logger.Error("Failed to get channel subscriptions from Redis", zap.Error(err), zap.String("channel_id", c.ID))
+		} else {
+			// Check if there are subscribers on other instances
+			hasRemoteSubscribers := false
+			for _, socketID := range allSubscribers {
+				instanceID, err := a.redisClient.GetConnectionInstance(a.AppID, socketID)
+				if err == nil && instanceID != a.redisClient.GetInstanceID() {
+					hasRemoteSubscribers = true
+					break
+				}
+			}
+
+			// Publish to Redis Pub/Sub if there are remote subscribers
+			if hasRemoteSubscribers {
+				eventData, err := event.Data.MarshalJSON()
+				if err != nil {
+					logger.Error("Failed to marshal event data", zap.Error(err))
+				} else {
+					var eventPayload interface{}
+					if err := json.Unmarshal(eventData, &eventPayload); err != nil {
+						logger.Error("Failed to unmarshal event data", zap.Error(err))
+					} else {
+						eventMsg := redis.EventMessage{
+							Event:    event.Event,
+							Channel:   event.Channel,
+							Data:     eventPayload,
+							IgnoreID: ignore,
+						}
+						if err := a.redisClient.PublishEvent(a.AppID, c.ID, eventMsg); err != nil {
+							logger.Error("Failed to publish event to Redis Pub/Sub", zap.Error(err), zap.String("channel_id", c.ID))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return err
 }
 
 // Unsubscribe unsubscribe the given connection from the channel
 // remove the channel from the application if it is empty
 func (a *Application) Unsubscribe(c *channel.Channel, conn *connection.Connection) error {
+	// Unsubscribe locally first
 	err := c.Unsubscribe(conn)
 	if err != nil {
 		return err
+	}
+
+	// Remove subscription from Redis
+	if a.redisClient != nil {
+		if err := a.redisClient.UnsubscribeFromChannel(a.AppID, c.ID, conn.SocketID); err != nil {
+			logger.Error("Failed to unregister subscription from Redis", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", conn.SocketID))
+			// Don't fail the unsubscribe if Redis fails, but log it
+		}
+
+		// Remove presence data if this is a presence channel
+		if c.IsPresence() {
+			if err := a.redisClient.RemovePresenceData(a.AppID, c.ID, conn.SocketID); err != nil {
+				logger.Error("Failed to remove presence data from Redis", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", conn.SocketID))
+			}
+		}
 	}
 
 	if !c.IsOccupied() {
@@ -310,5 +478,34 @@ func (a *Application) Unsubscribe(c *channel.Channel, conn *connection.Connectio
 
 // Subscribe the connection into the given channel
 func (a *Application) Subscribe(c *channel.Channel, conn *connection.Connection, data string) error {
-	return c.Subscribe(conn, data)
+	// Subscribe locally first
+	err := c.Subscribe(conn, data)
+	if err != nil {
+		return err
+	}
+
+	// Register subscription in Redis
+	if a.redisClient != nil {
+		if err := a.redisClient.SubscribeToChannel(a.AppID, c.ID, conn.SocketID, data); err != nil {
+			logger.Error("Failed to register subscription in Redis", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", conn.SocketID))
+			// Don't fail the subscription if Redis fails, but log it
+		}
+
+		// Store presence data if this is a presence channel
+		if c.IsPresence() {
+			// Extract user ID from channel data
+			var info struct {
+				UserID   string          `json:"user_id"`
+				UserInfo json.RawMessage `json:"user_info"`
+			}
+			if err := json.Unmarshal([]byte(data), &info); err == nil {
+				userInfo := string(info.UserInfo)
+				if err := a.redisClient.StorePresenceData(a.AppID, c.ID, conn.SocketID, info.UserID, userInfo); err != nil {
+					logger.Error("Failed to store presence data in Redis", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", conn.SocketID))
+				}
+			}
+		}
+	}
+
+	return nil
 }

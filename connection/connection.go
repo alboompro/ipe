@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/golang/glog"
+	"go.uber.org/zap"
+	"ipe/logger"
 )
 
 // Socket interface to write to the client
@@ -27,7 +28,7 @@ type Connection struct {
 
 // New Create a new Subscriber
 func New(socketID string, s Socket) *Connection {
-	log.Infof("Creating a new Subscriber %+v", socketID)
+	logger.Info("Creating new subscriber", zap.String("socket_id", socketID))
 
 	return &Connection{SocketID: socketID, Socket: s, CreatedAt: time.Now()}
 }
@@ -38,6 +39,6 @@ func (conn *Connection) Publish(m interface{}) {
 	defer conn.Unlock()
 
 	if err := conn.Socket.WriteJSON(m); err != nil {
-		log.Errorf("error writing json into Socket, %+v", err)
+		logger.Error("Error writing JSON to socket", zap.Error(err), zap.String("socket_id", conn.SocketID))
 	}
 }

@@ -1,0 +1,110 @@
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+    - testutils
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.generated\\.go$"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - unparam
+    - goconst
+    - gocritic
+    - revive
+    - exportloopref
+    - gosec
+  disable:
+    - deadcode
+    - varcheck
+    - structcheck
+    - maligned
+    - dupl
+    - interfacer
+    - scopelint
+    - gochecknoglobals
+    - gochecknoinits
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  goconst:
+    min-len: 3
+    min-occurrences: 2
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+  gosec:
+    severity: medium
+    confidence: medium
+  govet:
+    check-shadowing: true
+    enable-all: true
+  revive:
+    min-confidence: 0.8
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+      - name: var-naming
+        severity: warning
+        disabled: false
+      - name: var-declaration
+        severity: warning
+        disabled: false
+      - name: package-comments
+        severity: warning
+        disabled: false
+      - name: range
+        severity: warning
+        disabled: false
+      - name: increment-decrement
+        severity: warning
+        disabled: false
+      - name: error-return
+        severity: warning
+        disabled: false
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - goconst
+    - path: testutils
+      linters:
+        - unused
+        - deadcode
+        - varcheck
+        - structcheck
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
