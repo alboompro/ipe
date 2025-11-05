@@ -1,6 +1,6 @@
 module ipe
 
-go 1.25.3
+go 1.21
 
 require (
 	github.com/golang/glog v1.2.5
