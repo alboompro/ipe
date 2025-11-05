@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 
 run:
   timeout: 5m
@@ -32,81 +32,60 @@ linters:
     - scopelint
     - gochecknoglobals
     - gochecknoinits
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  goconst:
-    min-len: 3
-    min-occurrences: 2
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
-  gosec:
-    severity: medium
-    confidence: medium
-  govet:
-    enable-all: true
-  shadow:
-    enabled: true
-  revive:
-    min-confidence: 0.8
-    rules:
-      - name: exported
-        severity: warning
-        disabled: false
-      - name: var-naming
-        severity: warning
-        disabled: false
-      - name: var-declaration
-        severity: warning
-        disabled: false
-      - name: package-comments
-        severity: warning
-        disabled: false
-      - name: range
-        severity: warning
-        disabled: false
-      - name: increment-decrement
-        severity: warning
-        disabled: false
-      - name: error-return
-        severity: warning
-        disabled: false
-  staticcheck:
-    checks: ["all"]
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    goconst:
+      min-len: 3
+      min-occurrences: 2
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+        - whyNoLint
+        - wrapperFunc
+    gosec:
+      severity: medium
+      confidence: medium
+    govet:
+      enable-all: true
+    shadow:
+      enabled: true
+    revive:
+      min-confidence: 0.8
+      rules:
+        - name: exported
+          severity: warning
+          disabled: false
+        - name: var-naming
+          severity: warning
+          disabled: false
+        - name: var-declaration
+          severity: warning
+          disabled: false
+        - name: package-comments
+          severity: warning
+          disabled: false
+        - name: range
+          severity: warning
+          disabled: false
+        - name: increment-decrement
+          severity: warning
+          disabled: false
+        - name: error-return
+          severity: warning
+          disabled: false
+    staticcheck:
+      checks: ["all"]
 
 issues:
-  exclude-dirs:
-    - vendor
-    - testutils
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*\\.generated\\.go$"
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - goconst
-    - path: testutils
-      linters:
-        - unused
-        - deadcode
-        - varcheck
-        - structcheck
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-
