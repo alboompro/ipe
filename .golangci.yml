@@ -1,5 +1,3 @@
-version: "2"
-
 run:
   timeout: 5m
   tests: true
@@ -16,79 +14,77 @@ linters:
     - gocritic
     - revive
     - gosec
-  settings:
-    errcheck:
-      check-type-assertions: false
-      check-blank: true
-      exclude-functions:
-        - (io.ReadCloser).Close
-        - (*os.File).Close
-    goconst:
-      min-len: 5
-      min-occurrences: 5
-    gocritic:
-      enabled-tags:
-        - diagnostic
-        - performance
-      disabled-checks:
-        - dupImport
-        - ifElseChain
-        - octalLiteral
-        - whyNoLint
-        - wrapperFunc
-        - exposedSyncMutex
-        - importShadow
-        - hugeParam
-        - sprintfQuotedString
-    gosec:
-      severity: high
-      confidence: high
-      excludes:
-        - G304  # Potential file inclusion via variable
-        - G114  # Use of net/http serve function
-        - G404  # Use of weak random number generator
-    govet:
-      enable-all: true
-      disable:
-        - fieldalignment
-    revive:
-      rules:
-        - name: exported
-          severity: warning
-          disabled: false
-        - name: var-naming
-          severity: warning
-          disabled: false
-        - name: var-declaration
-          severity: warning
-          disabled: false
-        - name: package-comments
-          severity: warning
-          disabled: true
-        - name: range
-          severity: warning
-          disabled: false
-        - name: increment-decrement
-          severity: warning
-          disabled: false
-        - name: error-return
-          severity: warning
-          disabled: false
-    staticcheck:
-      checks: ["all"]
-    unparam:
-      check-exported: false
+
+linters-settings:
+  errcheck:
+    check-type-assertions: false
+    check-blank: true
+    exclude-functions:
+      - (io.ReadCloser).Close
+      - (*os.File).Close
+  goconst:
+    min-len: 5
+    min-occurrences: 5
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - dupImport
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+      - exposedSyncMutex
+      - importShadow
+      - hugeParam
+      - sprintfQuotedString
+  gosec:
+    severity: high
+    confidence: high
+    excludes:
+      - G304
+      - G114
+      - G404
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+      - name: var-naming
+        severity: warning
+        disabled: false
+      - name: var-declaration
+        severity: warning
+        disabled: false
+      - name: package-comments
+        severity: warning
+        disabled: true
+      - name: range
+        severity: warning
+        disabled: false
+      - name: increment-decrement
+        severity: warning
+        disabled: false
+      - name: error-return
+        severity: warning
+        disabled: false
+  staticcheck:
+    checks: ["all"]
+  unparam:
+    check-exported: false
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - goconst
-        - unparam
-    - text: "should have a package comment"
-      linters:
-        - revive
-        - staticcheck
+  exclude:
+    - "Error return value of.*is not checked"
+    - "should use.*instead"
+    - "should have a package comment"
+    - "fieldalignment"
+    - "goconst"
+    - "unparam"

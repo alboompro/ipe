@@ -280,37 +280,37 @@ func TestWebSocket_SubscribePublicChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(server.URL, app.Key, 7)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 	defer conn.Close()
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Extract socket_id from connection_established
 	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(connEstablished.Data), &connData); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr)
 	}
 	socketID := connData["socket_id"].(string)
 
 	// Subscribe to public channel
 	subscribeEvent := events.NewSubscribe("test-channel", "", "")
-	if err := conn.WriteJSON(subscribeEvent); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr)
 	}
 
 	// Read subscription_succeeded
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSucceeded events.SubscriptionSucceeded
-	if err := conn.ReadJSON(&subSucceeded); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
 	if subSucceeded.Event != "pusher_internal:subscription_succeeded" {
@@ -514,43 +514,43 @@ func TestWebSocket_Unsubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(server.URL, app.Key, 7)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 	defer conn.Close()
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Extract socket_id
 	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(connEstablished.Data), &connData); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr)
 	}
 	socketID := connData["socket_id"].(string)
 
 	// Subscribe first
 	subscribeEvent := events.NewSubscribe("test-channel", "", "")
-	if err := conn.WriteJSON(subscribeEvent); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr)
 	}
 
 	// Read subscription_succeeded
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSucceeded events.SubscriptionSucceeded
-	if err := conn.ReadJSON(&subSucceeded); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
 	// Unsubscribe
 	unsubscribeEvent := events.NewUnsubscribe("test-channel")
-	if err := conn.WriteJSON(unsubscribeEvent); err != nil {
-		t.Fatalf("Failed to send unsubscribe: %v", err)
+	if unsubErr := conn.WriteJSON(unsubscribeEvent); unsubErr != nil {
+		t.Fatalf("Failed to send unsubscribe: %v", unsubErr)
 	}
 
 	// Give it a moment to process
@@ -663,23 +663,23 @@ func TestWebSocket_ClientEvent(t *testing.T) {
 	}
 	app.UserEvents = true // Enable user events
 
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(server.URL, app.Key, 7)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 	defer conn.Close()
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Extract socket_id
 	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(connEstablished.Data), &connData); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr)
 	}
 	socketID := connData["socket_id"].(string)
 
@@ -688,15 +688,15 @@ func TestWebSocket_ClientEvent(t *testing.T) {
 	toSign := []string{socketID, channelName}
 	auth := app.Key + ":" + utils.HashMAC([]byte(strings.Join(toSign, ":")), []byte(app.Secret))
 	subscribeEvent := events.NewSubscribe(channelName, auth, "")
-	if err := conn.WriteJSON(subscribeEvent); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr)
 	}
 
 	// Read subscription_succeeded
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSucceeded events.SubscriptionSucceeded
-	if err := conn.ReadJSON(&subSucceeded); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
 	// Send client event
@@ -705,8 +705,8 @@ func TestWebSocket_ClientEvent(t *testing.T) {
 		Channel: channelName,
 		Data:    json.RawMessage(`{"message":"hello"}`),
 	}
-	if err := conn.WriteJSON(clientEvent); err != nil {
-		t.Fatalf("Failed to send client event: %v", err)
+	if clientErr := conn.WriteJSON(clientEvent); clientErr != nil {
+		t.Fatalf("Failed to send client event: %v", clientErr)
 	}
 
 	// Give it a moment to process
@@ -863,36 +863,36 @@ func TestWebSocket_ConnectionClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(server.URL, app.Key, 7)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Extract socket_id
 	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(connEstablished.Data), &connData); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr)
 	}
 	socketID := connData["socket_id"].(string)
 
 	// Subscribe to a channel
 	subscribeEvent := events.NewSubscribe("test-channel", "", "")
-	if err := conn.WriteJSON(subscribeEvent); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr)
 	}
 
 	// Read subscription_succeeded
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSucceeded events.SubscriptionSucceeded
-	if err := conn.ReadJSON(&subSucceeded); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
 	// Close connection
@@ -926,22 +926,22 @@ func TestWebSocket_ConnectionClose_EOF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get app from storage: %v", err)
 	}
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(server.URL, app.Key, 7)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Extract socket_id
 	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(connEstablished.Data), &connData); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr)
 	}
 	socketID := connData["socket_id"].(string)
 

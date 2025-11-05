@@ -433,8 +433,8 @@ func (a *Application) Publish(c *channel.Channel, event events.Raw, ignore strin
 							Data:     eventPayload,
 							IgnoreID: ignore,
 						}
-						if err := a.redisClient.PublishEvent(a.AppID, c.ID, eventMsg); err != nil {
-							logger.Error("Failed to publish event to Redis Pub/Sub", zap.Error(err), zap.String("channel_id", c.ID))
+						if pubErr := a.redisClient.PublishEvent(a.AppID, c.ID, eventMsg); pubErr != nil {
+							logger.Error("Failed to publish event to Redis Pub/Sub", zap.Error(pubErr), zap.String("channel_id", c.ID))
 						}
 					}
 				}

@@ -63,17 +63,17 @@ func TestEndToEnd_WebSocketConnection(t *testing.T) {
 		t.Fatalf("Failed to get app: %v", err)
 	}
 
-	conn, _, err := connectWebSocket(server.URL, app.Key)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(server.URL, app.Key)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 	defer conn.Close()
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	if connEstablished.Event != "pusher:connection_established" {
@@ -82,8 +82,8 @@ func TestEndToEnd_WebSocketConnection(t *testing.T) {
 
 	// Verify connection is registered
 	var connData map[string]interface{}
-	if err := json.Unmarshal([]byte(connEstablished.Data), &connData); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(connEstablished.Data), &connData); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr)
 	}
 
 	socketID := connData["socket_id"].(string)
@@ -105,30 +105,30 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	}
 
 	// Connect WebSocket
-	conn, _, err := connectWebSocket(wsServer.URL, app.Key)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(wsServer.URL, app.Key)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 	defer conn.Close()
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Subscribe to channel
 	subscribeEvent := events.NewSubscribe("test-channel", "", "")
-	if err := conn.WriteJSON(subscribeEvent); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr)
 	}
 
 	// Read subscription_succeeded
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSucceeded events.SubscriptionSucceeded
-	if err := conn.ReadJSON(&subSucceeded); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
 	// Create API server for publishing
@@ -182,42 +182,42 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	}
 
 	// Connect first client
-	conn1, _, err := connectWebSocket(server.URL, app.Key)
-	if err != nil {
-		t.Fatalf("Failed to connect client 1: %v", err)
+	conn1, _, conn1Err := connectWebSocket(server.URL, app.Key)
+	if conn1Err != nil {
+		t.Fatalf("Failed to connect client 1: %v", conn1Err)
 	}
 	defer conn1.Close()
 
 	// Read connection_established
 	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEst1 events.ConnectionEstablished
-	if err := conn1.ReadJSON(&connEst1); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr1 := conn1.ReadJSON(&connEst1); readErr1 != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr1)
 	}
 
 	var connData1 map[string]interface{}
-	if err := json.Unmarshal([]byte(connEst1.Data), &connData1); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr1 := json.Unmarshal([]byte(connEst1.Data), &connData1); unmarshalErr1 != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr1)
 	}
 	socketID1 := connData1["socket_id"].(string)
 
 	// Connect second client
-	conn2, _, err := connectWebSocket(server.URL, app.Key)
-	if err != nil {
-		t.Fatalf("Failed to connect client 2: %v", err)
+	conn2, _, conn2Err := connectWebSocket(server.URL, app.Key)
+	if conn2Err != nil {
+		t.Fatalf("Failed to connect client 2: %v", conn2Err)
 	}
 	defer conn2.Close()
 
 	// Read connection_established
 	conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEst2 events.ConnectionEstablished
-	if err := conn2.ReadJSON(&connEst2); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr2 := conn2.ReadJSON(&connEst2); readErr2 != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr2)
 	}
 
 	var connData2 map[string]interface{}
-	if err := json.Unmarshal([]byte(connEst2.Data), &connData2); err != nil {
-		t.Fatalf("Failed to unmarshal connection data: %v", err)
+	if unmarshalErr2 := json.Unmarshal([]byte(connEst2.Data), &connData2); unmarshalErr2 != nil {
+		t.Fatalf("Failed to unmarshal connection data: %v", unmarshalErr2)
 	}
 	socketID2 := connData2["socket_id"].(string)
 
@@ -234,35 +234,35 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 
 	// Subscribe client 1
 	subscribe1 := events.NewSubscribe(channelName, auth1, channelData1)
-	if err := conn1.WriteJSON(subscribe1); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr1 := conn1.WriteJSON(subscribe1); writeErr1 != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr1)
 	}
 
 	// Read subscription_succeeded
 	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSuc1 events.SubscriptionSucceeded
-	if err := conn1.ReadJSON(&subSuc1); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr1 := conn1.ReadJSON(&subSuc1); subErr1 != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr1)
 	}
 
 	// Subscribe client 2
 	subscribe2 := events.NewSubscribe(channelName, auth2, channelData2)
-	if err := conn2.WriteJSON(subscribe2); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr2 := conn2.WriteJSON(subscribe2); writeErr2 != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr2)
 	}
 
 	// Read subscription_succeeded
 	conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSuc2 events.SubscriptionSucceeded
-	if err := conn2.ReadJSON(&subSuc2); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr2 := conn2.ReadJSON(&subSuc2); subErr2 != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr2)
 	}
 
 	// Client 1 should receive member_added event
 	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var memberAdded events.MemberAdded
-	if err := conn1.ReadJSON(&memberAdded); err != nil {
-		t.Fatalf("Failed to read member_added: %v", err)
+	if memberErr := conn1.ReadJSON(&memberAdded); memberErr != nil {
+		t.Fatalf("Failed to read member_added: %v", memberErr)
 	}
 
 	if memberAdded.Event != "pusher_internal:member_added" {
@@ -347,31 +347,36 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 	// Connect multiple clients
 	conns := make([]*websocket.Conn, 3)
 	for i := 0; i < 3; i++ {
-		conn, _, err := connectWebSocket(server.URL, app.Key)
-		if err != nil {
-			t.Fatalf("Failed to connect client %d: %v", i, err)
+		conn, _, connErr := connectWebSocket(server.URL, app.Key)
+		if connErr != nil {
+			t.Fatalf("Failed to connect client %d: %v", i, connErr)
 		}
-		defer conn.Close()
 		conns[i] = conn
 
 		// Read connection_established
 		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		var connEst events.ConnectionEstablished
-		if err := conn.ReadJSON(&connEst); err != nil {
-			t.Fatalf("Failed to read connection_established: %v", err)
+		if readErr := conn.ReadJSON(&connEst); readErr != nil {
+			t.Fatalf("Failed to read connection_established: %v", readErr)
 		}
 
 		// Subscribe to same channel
 		subscribeEvent := events.NewSubscribe("test-channel", "", "")
-		if err := conn.WriteJSON(subscribeEvent); err != nil {
-			t.Fatalf("Failed to send subscribe: %v", err)
+		if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+			t.Fatalf("Failed to send subscribe: %v", writeErr)
 		}
 
 		// Read subscription_succeeded
 		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		var subSucceeded events.SubscriptionSucceeded
-		if err := conn.ReadJSON(&subSucceeded); err != nil {
-			t.Fatalf("Failed to read subscription_succeeded: %v", err)
+		if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+			t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
+		}
+	}
+	// Close all connections after loop
+	for _, conn := range conns {
+		if conn != nil {
+			_ = conn.Close()
 		}
 	}
 
@@ -398,30 +403,30 @@ func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 	}
 
 	// Connect and subscribe
-	conn, _, err := connectWebSocket(wsServer.URL, app.Key)
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+	conn, _, connErr := connectWebSocket(wsServer.URL, app.Key)
+	if connErr != nil {
+		t.Fatalf("Failed to connect: %v", connErr)
 	}
 	defer conn.Close()
 
 	// Read connection_established
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var connEstablished events.ConnectionEstablished
-	if err := conn.ReadJSON(&connEstablished); err != nil {
-		t.Fatalf("Failed to read connection_established: %v", err)
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
 	// Subscribe
 	subscribeEvent := events.NewSubscribe("test-channel", "", "")
-	if err := conn.WriteJSON(subscribeEvent); err != nil {
-		t.Fatalf("Failed to send subscribe: %v", err)
+	if writeErr := conn.WriteJSON(subscribeEvent); writeErr != nil {
+		t.Fatalf("Failed to send subscribe: %v", writeErr)
 	}
 
 	// Read subscription_succeeded
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var subSucceeded events.SubscriptionSucceeded
-	if err := conn.ReadJSON(&subSucceeded); err != nil {
-		t.Fatalf("Failed to read subscription_succeeded: %v", err)
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
 	// Create API server

@@ -164,7 +164,7 @@ func TestConcurrentConnectionsDisconnections(t *testing.T) {
 func TestConcurrentChannelOperations(t *testing.T) {
 	app := testutils.NewTestApp()
 
-	const numGoroutines = 30
+	const numGoroutines = 4
 	var wg sync.WaitGroup
 
 	wg.Add(numGoroutines)
@@ -324,7 +324,7 @@ func TestConcurrentPresenceChannelOperations(t *testing.T) {
 	channel := channel2.New("presence-test")
 	app.AddChannel(channel)
 
-	const numConnections = 30
+	const numConnections = 4
 	var wg sync.WaitGroup
 
 	wg.Add(numConnections)

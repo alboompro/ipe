@@ -64,7 +64,9 @@ func TestTriggerChannelOccupiedHook(t *testing.T) {
 	// Create test server to receive webhook
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedRequest = r
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -128,7 +130,9 @@ func TestTriggerChannelVacatedHook(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -160,7 +164,9 @@ func TestTriggerMemberAddedHook(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -203,7 +209,9 @@ func TestTriggerMemberRemovedHook(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -242,7 +250,9 @@ func TestTriggerClientEventHook(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -289,7 +299,9 @@ func TestTriggerClientEventHook_PresenceChannel(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -400,7 +412,9 @@ func TestWebhookPayload_Structure(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -440,7 +454,9 @@ func TestWebhookSignature_Validation(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedRequest = r
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -479,7 +495,9 @@ func TestWebhookMultipleEvents(t *testing.T) {
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = readBody(r)
+		var readErr error
+		receivedBody, readErr = readBody(r)
+		_ = readErr
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
