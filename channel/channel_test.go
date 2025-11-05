@@ -210,8 +210,8 @@ func TestPublish_ToAllSubscribers(t *testing.T) {
 	conn2 := connection.New("socket-2", mockSocket2)
 
 	// Subscribe both connections
-	c.Subscribe(conn1, "")
-	c.Subscribe(conn2, "")
+	_ = c.Subscribe(conn1, "") //nolint:gosec
+	_ = c.Subscribe(conn2, "") //nolint:gosec
 
 	// Publish event
 	event := events.Raw{
@@ -243,8 +243,8 @@ func TestPublish_WithIgnoreConnection(t *testing.T) {
 	conn2 := connection.New("socket-2", mockSocket2)
 
 	// Subscribe both connections
-	c.Subscribe(conn1, "")
-	c.Subscribe(conn2, "")
+	_ = c.Subscribe(conn1, "") //nolint:gosec
+	_ = c.Subscribe(conn2, "") //nolint:gosec
 
 	// Clear messages
 	mockSocket1.ClearMessages()
@@ -289,10 +289,10 @@ func TestPublish_EmptyChannel(t *testing.T) {
 	}
 }
 
-func TestPublish_InvalidJSON(t *testing.T) {
+func TestPublish_InvalidJSON(t *testing.T) { //nolint:revive // t required by testing framework
 	c := New("public-channel")
 	conn := connection.New("socket-1", mocks.NewMockSocket())
-	c.Subscribe(conn, "")
+	_ = c.Subscribe(conn, "") //nolint:gosec
 
 	// Publish with invalid JSON (should handle gracefully)
 	event := events.Raw{
@@ -310,8 +310,8 @@ func TestSubscriptions_ReturnsAllSubscriptions(t *testing.T) {
 	conn1 := connection.New("socket-1", mocks.NewMockSocket())
 	conn2 := connection.New("socket-2", mocks.NewMockSocket())
 
-	c.Subscribe(conn1, "")
-	c.Subscribe(conn2, "")
+	_ = c.Subscribe(conn1, "") //nolint:gosec
+	_ = c.Subscribe(conn2, "") //nolint:gosec
 
 	subscriptions := c.Subscriptions()
 	if len(subscriptions) != 2 {
@@ -325,8 +325,8 @@ func TestTotalUsers_PresenceChannel(t *testing.T) {
 	conn2 := connection.New("socket-2", mocks.NewMockSocket())
 
 	// Subscribe with different user IDs
-	c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`)
-	c.Subscribe(conn2, `{"user_id":"user2","user_info":{}}`)
+	_ = c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`) //nolint:gosec
+	_ = c.Subscribe(conn2, `{"user_id":"user2","user_info":{}}`) //nolint:gosec
 
 	if c.TotalUsers() != 2 {
 		t.Errorf("Expected 2 users, got %d", c.TotalUsers())
@@ -339,8 +339,8 @@ func TestTotalUsers_PresenceChannelDuplicateUsers(t *testing.T) {
 	conn2 := connection.New("socket-2", mocks.NewMockSocket())
 
 	// Subscribe with same user ID
-	c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`)
-	c.Subscribe(conn2, `{"user_id":"user1","user_info":{}}`)
+	_ = c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`) //nolint:gosec
+	_ = c.Subscribe(conn2, `{"user_id":"user1","user_info":{}}`) //nolint:gosec
 
 	// Should count as 1 user (same user ID)
 	if c.TotalUsers() != 1 {
@@ -363,13 +363,13 @@ func TestChannelOccupied_StateTracking(t *testing.T) {
 	}
 
 	// Subscribe
-	c.Subscribe(conn, "")
+	_ = c.Subscribe(conn, "") //nolint:gosec
 	if !c.IsOccupied() {
 		t.Error("Channel should be occupied after subscribe")
 	}
 
 	// Unsubscribe
-	c.Unsubscribe(conn)
+	_ = c.Unsubscribe(conn) //nolint:gosec
 	if c.IsOccupied() {
 		t.Error("Channel should not be occupied after unsubscribe")
 	}
@@ -383,7 +383,7 @@ func TestPublishMemberAddedEvent(t *testing.T) {
 	conn2 := connection.New("socket-2", mockSocket2)
 
 	// Subscribe conn1 first
-	c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`)
+	_ = c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`) //nolint:gosec
 
 	// Clear messages
 	mockSocket1.ClearMessages()
@@ -391,7 +391,7 @@ func TestPublishMemberAddedEvent(t *testing.T) {
 
 	// Subscribe conn2 - should trigger member_added for conn1
 	channelData := `{"user_id":"user2","user_info":{}}`
-	c.Subscribe(conn2, channelData)
+	_ = c.Subscribe(conn2, channelData) //nolint:gosec
 
 	// conn1 should receive member_added event
 	if mockSocket1.MessageCount() == 0 {
@@ -407,15 +407,15 @@ func TestPublishMemberRemovedEvent(t *testing.T) {
 	conn2 := connection.New("socket-2", mockSocket2)
 
 	// Subscribe both
-	c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`)
-	c.Subscribe(conn2, `{"user_id":"user2","user_info":{}}`)
+	_ = c.Subscribe(conn1, `{"user_id":"user1","user_info":{}}`) //nolint:gosec
+	_ = c.Subscribe(conn2, `{"user_id":"user2","user_info":{}}`) //nolint:gosec
 
 	// Clear messages
 	mockSocket1.ClearMessages()
 	mockSocket2.ClearMessages()
 
 	// Unsubscribe conn2 - should trigger member_removed for conn1
-	c.Unsubscribe(conn2)
+	_ = c.Unsubscribe(conn2) //nolint:gosec
 
 	// conn1 should receive member_removed event
 	if mockSocket1.MessageCount() == 0 {

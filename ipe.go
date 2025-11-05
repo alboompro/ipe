@@ -2,11 +2,13 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package ipe provides the main entry point and server initialization for the IPE application.
 package ipe
 
 import (
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -32,7 +34,7 @@ func Start(filename string) {
 
 	var conf config.File
 
-	data, err := os.ReadFile(filename)
+	data, err := os.ReadFile(filename) //nolint:gosec
 	if err != nil {
 		logger.ErrorWithErr("Failed to read config file", err, zap.String("filename", filename))
 		return
@@ -111,10 +113,24 @@ func Start(filename string) {
 	if conf.SSL.Enabled {
 		go func() {
 			logger.Info("Starting HTTPS service", zap.String("host", conf.SSL.Host))
-			logger.Fatal("HTTPS server failed", zap.Error(http.ListenAndServeTLS(conf.SSL.Host, conf.SSL.CertFile, conf.SSL.KeyFile, router)))
+			server := &http.Server{
+				Addr:         conf.SSL.Host,
+				Handler:      router,
+				ReadTimeout:  15 * time.Second,
+				WriteTimeout: 15 * time.Second,
+				IdleTimeout:  60 * time.Second,
+			}
+			logger.Fatal("HTTPS server failed", zap.Error(server.ListenAndServeTLS(conf.SSL.CertFile, conf.SSL.KeyFile)))
 		}()
 	}
 
 	logger.Info("Starting HTTP service", zap.String("host", conf.Host))
-	logger.Fatal("HTTP server failed", zap.Error(http.ListenAndServe(conf.Host, router)))
+	server := &http.Server{
+		Addr:         conf.Host,
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	logger.Fatal("HTTP server failed", zap.Error(server.ListenAndServe()))
 }

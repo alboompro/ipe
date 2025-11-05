@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package testutils provides testing utilities and mock implementations for the IPE application.
 package testutils
 
 import (
@@ -180,7 +181,7 @@ func (m *MockRedisClient) GetChannelSubscriptions(appID, channelID string) ([]st
 }
 
 // GetSubscriptionMetadata returns subscription metadata
-func (m *MockRedisClient) GetSubscriptionMetadata(appID, channelID, socketID string) (*redis.SubscriptionMetadata, error) {
+func (m *MockRedisClient) GetSubscriptionMetadata(_ string, channelID, socketID string) (*redis.SubscriptionMetadata, error) {
 	if m.simulateOperationErr {
 		return nil, fmt.Errorf("simulated error")
 	}

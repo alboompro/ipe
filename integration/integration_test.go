@@ -70,9 +70,9 @@ func TestEndToEnd_WebSocketConnection(t *testing.T) {
 	defer conn.Close()
 
 	// Read connection_established
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var connEstablished events.ConnectionEstablished
-	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil { //nolint:gosec
 		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
@@ -112,9 +112,9 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	defer conn.Close()
 
 	// Read connection_established
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var connEstablished events.ConnectionEstablished
-	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil { //nolint:gosec
 		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
@@ -125,9 +125,9 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	}
 
 	// Read subscription_succeeded
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var subSucceeded events.SubscriptionSucceeded
-	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil { //nolint:gosec
 		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 
@@ -155,9 +155,9 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	}
 
 	// Read event from WebSocket
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var responseEvent events.Response
-	if err := conn.ReadJSON(&responseEvent); err != nil {
+	if err := conn.ReadJSON(&responseEvent); err != nil { //nolint:gosec
 		t.Fatalf("Failed to read response event: %v", err)
 	}
 
@@ -189,9 +189,9 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	defer conn1.Close()
 
 	// Read connection_established
-	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn1.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var connEst1 events.ConnectionEstablished
-	if readErr1 := conn1.ReadJSON(&connEst1); readErr1 != nil {
+	if readErr1 := conn1.ReadJSON(&connEst1); readErr1 != nil { //nolint:gosec
 		t.Fatalf("Failed to read connection_established: %v", readErr1)
 	}
 
@@ -209,9 +209,9 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	defer conn2.Close()
 
 	// Read connection_established
-	conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn2.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var connEst2 events.ConnectionEstablished
-	if readErr2 := conn2.ReadJSON(&connEst2); readErr2 != nil {
+	if readErr2 := conn2.ReadJSON(&connEst2); readErr2 != nil { //nolint:gosec
 		t.Fatalf("Failed to read connection_established: %v", readErr2)
 	}
 
@@ -239,9 +239,9 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	}
 
 	// Read subscription_succeeded
-	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn1.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var subSuc1 events.SubscriptionSucceeded
-	if subErr1 := conn1.ReadJSON(&subSuc1); subErr1 != nil {
+	if subErr1 := conn1.ReadJSON(&subSuc1); subErr1 != nil { //nolint:gosec
 		t.Fatalf("Failed to read subscription_succeeded: %v", subErr1)
 	}
 
@@ -252,16 +252,16 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	}
 
 	// Read subscription_succeeded
-	conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn2.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var subSuc2 events.SubscriptionSucceeded
-	if subErr2 := conn2.ReadJSON(&subSuc2); subErr2 != nil {
+	if subErr2 := conn2.ReadJSON(&subSuc2); subErr2 != nil { //nolint:gosec
 		t.Fatalf("Failed to read subscription_succeeded: %v", subErr2)
 	}
 
 	// Client 1 should receive member_added event
-	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn1.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var memberAdded events.MemberAdded
-	if memberErr := conn1.ReadJSON(&memberAdded); memberErr != nil {
+	if memberErr := conn1.ReadJSON(&memberAdded); memberErr != nil { //nolint:gosec
 		t.Fatalf("Failed to read member_added: %v", memberErr)
 	}
 
@@ -298,7 +298,7 @@ func TestEndToEnd_PrivateChannelAuthentication(t *testing.T) {
 	defer conn.Close()
 
 	// Read connection_established
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var connEstablished events.ConnectionEstablished
 	if err := conn.ReadJSON(&connEstablished); err != nil {
 		t.Fatalf("Failed to read connection_established: %v", err)
@@ -322,7 +322,7 @@ func TestEndToEnd_PrivateChannelAuthentication(t *testing.T) {
 	}
 
 	// Read subscription_succeeded
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var subSucceeded events.SubscriptionSucceeded
 	if err := conn.ReadJSON(&subSucceeded); err != nil {
 		t.Fatalf("Failed to read subscription_succeeded: %v", err)
@@ -354,9 +354,9 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 		conns[i] = conn
 
 		// Read connection_established
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 		var connEst events.ConnectionEstablished
-		if readErr := conn.ReadJSON(&connEst); readErr != nil {
+			if readErr := conn.ReadJSON(&connEst); readErr != nil { //nolint:gosec
 			t.Fatalf("Failed to read connection_established: %v", readErr)
 		}
 
@@ -367,9 +367,9 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 		}
 
 		// Read subscription_succeeded
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 		var subSucceeded events.SubscriptionSucceeded
-		if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+		if subErr := conn.ReadJSON(&subSucceeded); subErr != nil { //nolint:gosec
 			t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 		}
 	}
@@ -410,9 +410,9 @@ func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 	defer conn.Close()
 
 	// Read connection_established
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var connEstablished events.ConnectionEstablished
-	if readErr := conn.ReadJSON(&connEstablished); readErr != nil {
+	if readErr := conn.ReadJSON(&connEstablished); readErr != nil { //nolint:gosec
 		t.Fatalf("Failed to read connection_established: %v", readErr)
 	}
 
@@ -423,9 +423,9 @@ func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 	}
 
 	// Read subscription_succeeded
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 	var subSucceeded events.SubscriptionSucceeded
-	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil {
+	if subErr := conn.ReadJSON(&subSucceeded); subErr != nil { //nolint:gosec
 		t.Fatalf("Failed to read subscription_succeeded: %v", subErr)
 	}
 

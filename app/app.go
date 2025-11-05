@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package app provides the core application logic for managing channels, connections, and subscriptions.
 package app
 
 import (
@@ -353,10 +354,10 @@ func (a *Application) FindOrCreateChannelByChannelID(n string) *channel.Channel 
 	if err != nil {
 		c = channel.New(
 			n,
-			channel.WithChannelOccupiedListener(func(c *channel.Channel, s *subscription.Subscription) {
+			channel.WithChannelOccupiedListener(func(c *channel.Channel, _ *subscription.Subscription) {
 				a.TriggerChannelOccupiedHook(c)
 			}),
-			channel.WithChannelVacatedListener(func(c *channel.Channel, s *subscription.Subscription) {
+			channel.WithChannelVacatedListener(func(c *channel.Channel, _ *subscription.Subscription) {
 				a.TriggerChannelVacatedHook(c)
 			}),
 			channel.WithMemberAddedListener(func(c *channel.Channel, s *subscription.Subscription) {

@@ -65,7 +65,7 @@ func TestConcurrentUnsubscriptions(t *testing.T) {
 	for i := 0; i < numConnections; i++ {
 		conn := connection.New(fmt.Sprintf("socket-%d", i), mocks.NewMockSocket())
 		app.Connect(conn)
-		app.Subscribe(channel, conn, "")
+		_ = app.Subscribe(channel, conn, "") //nolint:gosec
 		conns[i] = conn
 	}
 
@@ -102,7 +102,7 @@ func TestConcurrentPublishes(t *testing.T) {
 	// Subscribe a connection
 	conn := connection.New("socket-1", mocks.NewMockSocket())
 	app.Connect(conn)
-	app.Subscribe(channel, conn, "")
+	_ = app.Subscribe(channel, conn, "") //nolint:gosec
 
 	const numPublishes = 100
 	var wg sync.WaitGroup
@@ -131,7 +131,7 @@ func TestConcurrentPublishes(t *testing.T) {
 }
 
 // TestConcurrentConnectionsDisconnections tests concurrent connections and disconnections
-func TestConcurrentConnectionsDisconnections(t *testing.T) {
+func TestConcurrentConnectionsDisconnections(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 
 	const numGoroutines = 50
@@ -161,7 +161,7 @@ func TestConcurrentConnectionsDisconnections(t *testing.T) {
 }
 
 // TestConcurrentChannelOperations tests concurrent channel operations
-func TestConcurrentChannelOperations(t *testing.T) {
+func TestConcurrentChannelOperations(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 
 	const numGoroutines = 4
@@ -177,11 +177,11 @@ func TestConcurrentChannelOperations(t *testing.T) {
 
 			conn := connection.New(fmt.Sprintf("socket-%d", id), mocks.NewMockSocket())
 			app.Connect(conn)
-			app.Subscribe(channel, conn, "")
+			_ = app.Subscribe(channel, conn, "") //nolint:gosec
 
 			time.Sleep(10 * time.Millisecond)
 
-			app.Unsubscribe(channel, conn)
+			_ = app.Unsubscribe(channel, conn) //nolint:gosec
 		}(i)
 	}
 
@@ -190,7 +190,7 @@ func TestConcurrentChannelOperations(t *testing.T) {
 }
 
 // TestConcurrentPublishSubscribe tests concurrent publish and subscribe operations
-func TestConcurrentPublishSubscribe(t *testing.T) {
+func TestConcurrentPublishSubscribe(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 	channel := channel2.New("test-channel")
 	app.AddChannel(channel)
@@ -201,7 +201,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 	// Subscribe connection
 	conn := connection.New("socket-1", mocks.NewMockSocket())
 	app.Connect(conn)
-	app.Subscribe(channel, conn, "")
+	_ = app.Subscribe(channel, conn, "") //nolint:gosec
 
 	wg.Add(numOperations * 2)
 
@@ -211,7 +211,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 			defer wg.Done()
 			newConn := connection.New(fmt.Sprintf("socket-sub-%d", id), mocks.NewMockSocket())
 			app.Connect(newConn)
-			app.Subscribe(channel, newConn, "")
+			_ = app.Subscribe(channel, newConn, "") //nolint:gosec
 		}(i)
 	}
 
@@ -224,7 +224,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 				Channel: "test-channel",
 				Data:    []byte(fmt.Sprintf(`{"id":%d}`, id)),
 			}
-			app.Publish(channel, event, "")
+			_ = app.Publish(channel, event, "") //nolint:gosec
 		}(i)
 	}
 
@@ -233,7 +233,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 }
 
 // TestConcurrentFindChannel tests concurrent channel lookups
-func TestConcurrentFindChannel(t *testing.T) {
+func TestConcurrentFindChannel(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 
 	// Create channels
@@ -266,7 +266,7 @@ func TestConcurrentFindChannel(t *testing.T) {
 }
 
 // TestConcurrentConnectionLookup tests concurrent connection lookups
-func TestConcurrentConnectionLookup(t *testing.T) {
+func TestConcurrentConnectionLookup(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 
 	// Create connections
@@ -319,7 +319,7 @@ func TestConcurrentChannelCreation(t *testing.T) {
 }
 
 // TestConcurrentPresenceChannelOperations tests concurrent presence channel operations
-func TestConcurrentPresenceChannelOperations(t *testing.T) {
+func TestConcurrentPresenceChannelOperations(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 	channel := channel2.New("presence-test")
 	app.AddChannel(channel)
@@ -335,11 +335,11 @@ func TestConcurrentPresenceChannelOperations(t *testing.T) {
 			app.Connect(conn)
 
 			channelData := fmt.Sprintf(`{"user_id":"user%d","user_info":{}}`, id)
-			app.Subscribe(channel, conn, channelData)
+			_ = app.Subscribe(channel, conn, channelData) //nolint:gosec
 
 			time.Sleep(10 * time.Millisecond)
 
-			app.Unsubscribe(channel, conn)
+			_ = app.Unsubscribe(channel, conn) //nolint:gosec
 		}(i)
 	}
 
@@ -371,7 +371,7 @@ func TestLoadTest_ManyConnections(t *testing.T) {
 
 	// Subscribe all
 	for i := 0; i < numConnections; i++ {
-		app.Subscribe(channel, conns[i], "")
+		_ = app.Subscribe(channel, conns[i], "") //nolint:gosec
 	}
 
 	// Publish event
@@ -380,11 +380,11 @@ func TestLoadTest_ManyConnections(t *testing.T) {
 		Channel: "load-test-channel",
 		Data:    []byte(`{"message":"load test"}`),
 	}
-	app.Publish(channel, event, "")
+	_ = app.Publish(channel, event, "") //nolint:gosec
 
 	// Unsubscribe all
 	for i := 0; i < numConnections; i++ {
-		app.Unsubscribe(channel, conns[i])
+		_ = app.Unsubscribe(channel, conns[i]) //nolint:gosec
 	}
 
 	// Disconnect all
@@ -401,7 +401,7 @@ func TestLoadTest_ManyConnections(t *testing.T) {
 }
 
 // TestRaceCondition_SubscribeUnsubscribe tests for race conditions in subscribe/unsubscribe
-func TestRaceCondition_SubscribeUnsubscribe(t *testing.T) {
+func TestRaceCondition_SubscribeUnsubscribe(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()
 	channel := channel2.New("race-test-channel")
 	app.AddChannel(channel)
@@ -417,13 +417,13 @@ func TestRaceCondition_SubscribeUnsubscribe(t *testing.T) {
 		// Concurrent subscribe and unsubscribe
 		go func(c *connection.Connection) {
 			defer wg.Done()
-			app.Subscribe(channel, c, "")
+			_ = app.Subscribe(channel, c, "") //nolint:gosec
 		}(conn)
 
 		go func(c *connection.Connection) {
 			defer wg.Done()
 			time.Sleep(1 * time.Millisecond)
-			app.Unsubscribe(channel, c)
+			_ = app.Unsubscribe(channel, c) //nolint:gosec
 		}(conn)
 	}
 

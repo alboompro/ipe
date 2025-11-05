@@ -335,7 +335,7 @@ func TestTriggerClientEventHook_PresenceChannel(t *testing.T) {
 func TestTriggerHook_WebhooksDisabled(t *testing.T) {
 	requestReceived := false
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requestReceived = true
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -354,9 +354,9 @@ func TestTriggerHook_WebhooksDisabled(t *testing.T) {
 }
 
 // TestTriggerHook_HTTPError tests webhook handling when HTTP request fails
-func TestTriggerHook_HTTPError(t *testing.T) {
+func TestTriggerHook_HTTPError(t *testing.T) { //nolint:revive // t required by testing framework
 	// Create server that returns error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
@@ -372,7 +372,7 @@ func TestTriggerHook_HTTPError(t *testing.T) {
 }
 
 // TestTriggerHook_InvalidURL tests webhook handling with invalid URL
-func TestTriggerHook_InvalidURL(t *testing.T) {
+func TestTriggerHook_InvalidURL(t *testing.T) { //nolint:revive // t required by testing framework
 	app := newTestAppWithWebhooks("http://invalid-url-that-does-not-exist:9999")
 	channel := channel2.New("test-channel")
 
@@ -386,7 +386,7 @@ func TestTriggerHook_InvalidURL(t *testing.T) {
 // TestTriggerHook_Timeout tests webhook timeout handling
 func TestTriggerHook_Timeout(t *testing.T) {
 	// Create server that delays response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(10 * time.Second) // Much longer than timeout (5 seconds)
 		w.WriteHeader(http.StatusOK)
 	}))

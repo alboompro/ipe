@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package redis provides Redis client functionality for the IPE application.
 package redis
 
 import (

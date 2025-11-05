@@ -1,3 +1,4 @@
+// Package main provides a functional test client for the IPE application.
 package main
 
 import (
@@ -7,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+	"time"
 
 	"github.com/pusher/pusher-http-go"
 )
@@ -94,5 +96,12 @@ func main() {
 	http.HandleFunc("/trigger", triggerMessage)
 	http.HandleFunc("/hook", hookcallback)
 	http.Handle("/", http.FileServer(http.Dir("./")))
-	_ = http.ListenAndServe(":5000", nil)
+	
+	server := &http.Server{
+		Addr:         ":5000",
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	_ = server.ListenAndServe()
 }

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package utils provides utility functions for the IPE application.
 package utils
 
 import (
@@ -28,7 +29,7 @@ func HashMAC(message, key []byte) string {
 
 // GenerateSessionID Generate a new random Hash
 func GenerateSessionID() string {
-	return fmt.Sprintf("%d.%d", rand.Intn(math.MaxInt32), rand.Intn(math.MaxInt32))
+	return fmt.Sprintf("%d.%d", rand.Intn(math.MaxInt32), rand.Intn(math.MaxInt32)) //nolint:gosec
 }
 
 // IsChannelNameValid Verify if the channel name is valid

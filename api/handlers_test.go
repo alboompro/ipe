@@ -670,9 +670,9 @@ func Test_Authentication_ValidSignature(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Create a simple handler that returns 200 if authenticated
-	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK")) //nolint:gosec
 	}))
 
 	handler.ServeHTTP(w, r)
@@ -694,7 +694,7 @@ func Test_Authentication_InvalidSignature(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -716,7 +716,7 @@ func Test_Authentication_MissingSignature(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -737,7 +737,7 @@ func Test_Authentication_NonExistentApp(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -765,9 +765,9 @@ func Test_Authentication_QueryParameterOrdering(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Authentication(database)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK")) //nolint:gosec
 	}))
 
 	handler.ServeHTTP(w, r)
@@ -795,9 +795,9 @@ func Test_CheckAppDisabled_EnabledApp(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := CheckAppDisabled(_storage)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CheckAppDisabled(_storage)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK")) //nolint:gosec
 	}))
 
 	handler.ServeHTTP(w, r)
@@ -822,7 +822,7 @@ func Test_CheckAppDisabled_DisabledApp(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := CheckAppDisabled(_storage)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CheckAppDisabled(_storage)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -842,7 +842,7 @@ func Test_CheckAppDisabled_NonExistentApp(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := CheckAppDisabled(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CheckAppDisabled(database)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

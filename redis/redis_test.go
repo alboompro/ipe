@@ -51,32 +51,32 @@ func TestNewClient(t *testing.T) {
 
 	defer func() {
 		if originalHost != "" {
-			os.Setenv("REDIS_HOST", originalHost)
+			_ = os.Setenv("REDIS_HOST", originalHost) //nolint:gosec
 		} else {
-			os.Unsetenv("REDIS_HOST")
+			_ = os.Unsetenv("REDIS_HOST") //nolint:gosec
 		}
 		if originalPort != "" {
-			os.Setenv("REDIS_PORT", originalPort)
+			_ = os.Setenv("REDIS_PORT", originalPort) //nolint:gosec
 		} else {
-			os.Unsetenv("REDIS_PORT")
+			_ = os.Unsetenv("REDIS_PORT") //nolint:gosec
 		}
 		if originalDB != "" {
-			os.Setenv("REDIS_DB", originalDB)
+			_ = os.Setenv("REDIS_DB", originalDB) //nolint:gosec
 		} else {
-			os.Unsetenv("REDIS_DB")
+			_ = os.Unsetenv("REDIS_DB") //nolint:gosec
 		}
 		if originalPassword != "" {
-			os.Setenv("REDIS_PASSWORD", originalPassword)
+			_ = os.Setenv("REDIS_PASSWORD", originalPassword) //nolint:gosec
 		} else {
-			os.Unsetenv("REDIS_PASSWORD")
+			_ = os.Unsetenv("REDIS_PASSWORD") //nolint:gosec
 		}
 	}()
 
 	// Set test environment
-	os.Setenv("REDIS_HOST", "localhost")
-	os.Setenv("REDIS_PORT", "6379")
-	os.Setenv("REDIS_DB", "0")
-	os.Unsetenv("REDIS_PASSWORD")
+	_ = os.Setenv("REDIS_HOST", "localhost")   //nolint:gosec
+	_ = os.Setenv("REDIS_PORT", "6379")        //nolint:gosec
+	_ = os.Setenv("REDIS_DB", "0")             //nolint:gosec
+	_ = os.Unsetenv("REDIS_PASSWORD")         //nolint:gosec
 
 	client, err := NewClient()
 	if err != nil {

@@ -414,8 +414,8 @@ func TestPublish_ToLocalConnections(t *testing.T) {
 	app.AddChannel(channel)
 
 	// Subscribe both connections
-	app.Subscribe(channel, conn1, "")
-	app.Subscribe(channel, conn2, "")
+	_ = app.Subscribe(channel, conn1, "") //nolint:gosec
+	_ = app.Subscribe(channel, conn2, "") //nolint:gosec
 
 	// Publish event
 	event := events.Raw{
@@ -452,8 +452,8 @@ func TestPublish_WithSocketIDExclusion(t *testing.T) {
 	app.AddChannel(channel)
 
 	// Subscribe both connections
-	app.Subscribe(channel, conn1, "")
-	app.Subscribe(channel, conn2, "")
+	_ = app.Subscribe(channel, conn1, "") //nolint:gosec
+	_ = app.Subscribe(channel, conn2, "") //nolint:gosec
 
 	// Clear message counts
 	mockSocket1.ClearMessages()
@@ -512,8 +512,8 @@ func TestPublish_MultipleChannels(t *testing.T) {
 	app.AddChannel(channel2Obj)
 
 	// Subscribe to both channels
-	app.Subscribe(channel1, conn, "")
-	app.Subscribe(channel2Obj, conn, "")
+	_ = app.Subscribe(channel1, conn, "")       //nolint:gosec
+	_ = app.Subscribe(channel2Obj, conn, "")    //nolint:gosec
 
 	// Clear messages
 	mockSocket.ClearMessages()
@@ -557,8 +557,8 @@ func TestDisconnect_UnsubscribesFromChannels(t *testing.T) {
 	app.AddChannel(channel2Obj)
 
 	// Subscribe to both channels
-	app.Subscribe(channel1, conn, "")
-	app.Subscribe(channel2Obj, conn, "")
+	_ = app.Subscribe(channel1, conn, "")       //nolint:gosec
+	_ = app.Subscribe(channel2Obj, conn, "")    //nolint:gosec
 
 	// Disconnect
 	app.Disconnect("socket-1")
@@ -588,7 +588,7 @@ func TestDisconnect_ChannelCleanup(t *testing.T) {
 	app.AddChannel(channel)
 
 	// Subscribe
-	app.Subscribe(channel, conn, "")
+	_ = app.Subscribe(channel, conn, "") //nolint:gosec
 
 	// Disconnect
 	app.Disconnect("socket-1")
