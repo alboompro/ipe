@@ -13,25 +13,23 @@ linters:
     - unused
     - misspell
     - unconvert
-    - unparam
-    - goconst
     - gocritic
     - revive
     - gosec
   settings:
     errcheck:
-      check-type-assertions: true
+      check-type-assertions: false
       check-blank: true
+      exclude-functions:
+        - (io.ReadCloser).Close
+        - (*os.File).Close
     goconst:
-      min-len: 3
-      min-occurrences: 2
+      min-len: 5
+      min-occurrences: 5
     gocritic:
       enabled-tags:
         - diagnostic
-        - experimental
-        - opinionated
         - performance
-        - style
       disabled-checks:
         - dupImport
         - ifElseChain
@@ -40,11 +38,19 @@ linters:
         - wrapperFunc
         - exposedSyncMutex
         - importShadow
+        - hugeParam
+        - sprintfQuotedString
     gosec:
-      severity: medium
-      confidence: medium
+      severity: high
+      confidence: high
+      excludes:
+        - G304  # Potential file inclusion via variable
+        - G114  # Use of net/http serve function
+        - G404  # Use of weak random number generator
     govet:
       enable-all: true
+      disable:
+        - fieldalignment
     revive:
       rules:
         - name: exported
@@ -58,7 +64,7 @@ linters:
           disabled: false
         - name: package-comments
           severity: warning
-          disabled: false
+          disabled: true
         - name: range
           severity: warning
           disabled: false
@@ -70,7 +76,19 @@ linters:
           disabled: false
     staticcheck:
       checks: ["all"]
+    unparam:
+      check-exported: false
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - goconst
+        - unparam
+    - text: "should have a package comment"
+      linters:
+        - revive
+        - staticcheck

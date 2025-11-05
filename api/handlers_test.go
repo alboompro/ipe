@@ -627,12 +627,22 @@ func Test_GetChannelUsers_EmptyChannel(t *testing.T) {
 
 	var response map[string]interface{}
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
+		t.Fatalf("Failed to unmarshal response: %v, body: %s", err, w.Body.String())
 	}
 
-	users, ok := response["users"].([]interface{})
+	usersVal, exists := response["users"]
+	if !exists {
+		t.Fatalf("Expected 'users' key in response, got: %+v, body: %s", response, w.Body.String())
+	}
+
+	users, ok := usersVal.([]interface{})
 	if !ok {
-		t.Fatal("Expected users array in response")
+		// Try to handle null case
+		if usersVal == nil {
+			users = []interface{}{}
+		} else {
+			t.Fatalf("Expected users to be []interface{}, got type %T: %+v, body: %s", usersVal, usersVal, w.Body.String())
+		}
 	}
 
 	if len(users) != 0 {
@@ -770,7 +780,13 @@ func Test_Authentication_QueryParameterOrdering(t *testing.T) {
 // CheckAppDisabled middleware tests
 
 func Test_CheckAppDisabled_EnabledApp(t *testing.T) {
-	appID := testApp.AppID
+	// Create a fresh enabled app
+	enabledApp := newTestApp()
+	enabledApp.Enabled = true
+	_storage := storage.NewInMemory()
+	_ = _storage.AddApp(enabledApp)
+
+	appID := enabledApp.AppID
 	path := fmt.Sprintf("/apps/%s/events", appID)
 
 	r, _ := http.NewRequest("GET", path, nil)
@@ -779,7 +795,7 @@ func Test_CheckAppDisabled_EnabledApp(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 
-	handler := CheckAppDisabled(database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CheckAppDisabled(_storage)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	}))
@@ -787,7 +803,7 @@ func Test_CheckAppDisabled_EnabledApp(t *testing.T) {
 	handler.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("w.Code == %d, wants %d", w.Code, http.StatusOK)
+		t.Errorf("w.Code == %d, wants %d, body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
 }
 

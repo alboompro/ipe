@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ func newWebSocketTestServer(storage storage.Storage) *httptest.Server {
 }
 
 // connectWebSocket connects to a WebSocket endpoint
-func connectWebSocket(serverURL, appKey string, protocol int, queryParams map[string]string) (*websocket.Conn, *http.Response, error) {
+func connectWebSocket(serverURL, appKey string) (*websocket.Conn, *http.Response, error) {
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		return nil, nil, err
@@ -45,12 +44,7 @@ func connectWebSocket(serverURL, appKey string, protocol int, queryParams map[st
 	u.Path = "/app/" + appKey
 
 	q := u.Query()
-	if protocol > 0 {
-		q.Set("protocol", strconv.Itoa(protocol))
-	}
-	for k, v := range queryParams {
-		q.Set(k, v)
-	}
+	q.Set("protocol", "7")
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -69,7 +63,7 @@ func TestEndToEnd_WebSocketConnection(t *testing.T) {
 		t.Fatalf("Failed to get app: %v", err)
 	}
 
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -111,7 +105,7 @@ func TestEndToEnd_SubscribePublishReceive(t *testing.T) {
 	}
 
 	// Connect WebSocket
-	conn, _, err := connectWebSocket(wsServer.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(wsServer.URL, app.Key)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -188,7 +182,7 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	}
 
 	// Connect first client
-	conn1, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
+	conn1, _, err := connectWebSocket(server.URL, app.Key)
 	if err != nil {
 		t.Fatalf("Failed to connect client 1: %v", err)
 	}
@@ -208,7 +202,7 @@ func TestEndToEnd_PresenceChannelFullLifecycle(t *testing.T) {
 	socketID1 := connData1["socket_id"].(string)
 
 	// Connect second client
-	conn2, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
+	conn2, _, err := connectWebSocket(server.URL, app.Key)
 	if err != nil {
 		t.Fatalf("Failed to connect client 2: %v", err)
 	}
@@ -297,7 +291,7 @@ func TestEndToEnd_PrivateChannelAuthentication(t *testing.T) {
 		t.Fatalf("Failed to get app: %v", err)
 	}
 
-	conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(server.URL, app.Key)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -353,7 +347,7 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 	// Connect multiple clients
 	conns := make([]*websocket.Conn, 3)
 	for i := 0; i < 3; i++ {
-		conn, _, err := connectWebSocket(server.URL, app.Key, 7, nil)
+		conn, _, err := connectWebSocket(server.URL, app.Key)
 		if err != nil {
 			t.Fatalf("Failed to connect client %d: %v", i, err)
 		}
@@ -404,7 +398,7 @@ func TestEndToEnd_APIChannelInfoWhileActive(t *testing.T) {
 	}
 
 	// Connect and subscribe
-	conn, _, err := connectWebSocket(wsServer.URL, app.Key, 7, nil)
+	conn, _, err := connectWebSocket(wsServer.URL, app.Key)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}

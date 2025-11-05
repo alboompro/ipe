@@ -155,10 +155,9 @@ func TestConcurrentConnectionsDisconnections(t *testing.T) {
 	wg.Wait()
 
 	// All connections should be removed
-	if len(app.Channels()) > 0 {
-		// Channels might still exist if they had subscriptions
-		// This is expected behavior
-	}
+	// Note: Channels might still exist if they had subscriptions
+	// This is expected behavior, so we don't assert on channel count
+	_ = app.Channels()
 }
 
 // TestConcurrentChannelOperations tests concurrent channel operations

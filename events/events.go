@@ -100,7 +100,7 @@ func NewSubscriptionSucceeded(channel, data string) SubscriptionSucceeded {
 //	    }
 //	}"
 type SubscriptionSucceededPresenceData struct {
-	Ids   []string               `json:"ids"`
+	IDs   []string               `json:"ids"`
 	Hash  map[string]interface{} `json:"hash"`
 	Count int                    `json:"count"`
 }
@@ -125,7 +125,7 @@ func NewSubscriptionSucceedPresenceData(subscriptions map[string]*subscription.S
 		ids = append(ids, s.ID)
 	}
 
-	event.Ids = ids
+	event.IDs = ids
 	event.Hash = hash
 	event.Count = len(subscriptions)
 

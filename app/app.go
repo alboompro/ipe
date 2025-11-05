@@ -157,8 +157,8 @@ func (a *Application) Disconnect(socketID string) {
 	// Unsubscribe from channels
 	for _, c := range a.channels {
 		if c.IsSubscribed(conn) {
-			if err := c.Unsubscribe(conn); err != nil {
-				logger.Error("Error while calling Channel.Unsubscribe", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", socketID))
+			if err := a.Unsubscribe(c, conn); err != nil {
+				logger.Error("Error while calling Application.Unsubscribe", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", socketID))
 				continue
 			}
 		}
@@ -410,8 +410,8 @@ func (a *Application) Publish(c *channel.Channel, event events.Raw, ignore strin
 			// Check if there are subscribers on other instances
 			hasRemoteSubscribers := false
 			for _, socketID := range allSubscribers {
-				instanceID, err := a.redisClient.GetConnectionInstance(a.AppID, socketID)
-				if err == nil && instanceID != a.redisClient.GetInstanceID() {
+				instanceID, instanceErr := a.redisClient.GetConnectionInstance(a.AppID, socketID)
+				if instanceErr == nil && instanceID != a.redisClient.GetInstanceID() {
 					hasRemoteSubscribers = true
 					break
 				}
@@ -419,13 +419,13 @@ func (a *Application) Publish(c *channel.Channel, event events.Raw, ignore strin
 
 			// Publish to Redis Pub/Sub if there are remote subscribers
 			if hasRemoteSubscribers {
-				eventData, err := event.Data.MarshalJSON()
-				if err != nil {
-					logger.Error("Failed to marshal event data", zap.Error(err))
+				eventData, marshalErr := event.Data.MarshalJSON()
+				if marshalErr != nil {
+					logger.Error("Failed to marshal event data", zap.Error(marshalErr))
 				} else {
 					var eventPayload interface{}
-					if err := json.Unmarshal(eventData, &eventPayload); err != nil {
-						logger.Error("Failed to unmarshal event data", zap.Error(err))
+					if unmarshalErr := json.Unmarshal(eventData, &eventPayload); unmarshalErr != nil {
+						logger.Error("Failed to unmarshal event data", zap.Error(unmarshalErr))
 					} else {
 						eventMsg := redis.EventMessage{
 							Event:    event.Event,

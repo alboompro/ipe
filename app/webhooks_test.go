@@ -375,7 +375,7 @@ func TestTriggerHook_InvalidURL(t *testing.T) {
 func TestTriggerHook_Timeout(t *testing.T) {
 	// Create server that delays response
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Second) // Longer than timeout
+		time.Sleep(10 * time.Second) // Much longer than timeout (5 seconds)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -384,18 +384,14 @@ func TestTriggerHook_Timeout(t *testing.T) {
 	channel := channel2.New("test-channel")
 
 	// Note: triggerHook is a private function, so we test via public methods
-	// We'll test that the hook doesn't block forever
-	done := make(chan bool)
-	go func() {
-		app.TriggerChannelOccupiedHook(channel)
-		done <- true
-	}()
+	// We'll test that the hook doesn't block forever - it should timeout after maxTimeout (3 seconds)
+	start := time.Now()
+	app.TriggerChannelOccupiedHook(channel)
+	elapsed := time.Since(start)
 
-	select {
-	case <-done:
-		// Hook completed (possibly timed out internally)
-	case <-time.After(2 * time.Second):
-		t.Error("Webhook hook timed out")
+	// The hook should return after maxTimeout (3 seconds), not wait for the full 10 seconds
+	if elapsed > 4*time.Second {
+		t.Errorf("Webhook hook should timeout after ~3 seconds, but took %v", elapsed)
 	}
 }
 

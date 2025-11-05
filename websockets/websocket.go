@@ -190,14 +190,17 @@ func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, application
 		strProtocol = queryVars.Get("protocol")
 	)
 
+	// Check if protocol is empty first
+	if strings.TrimSpace(strProtocol) == "" {
+		return noProtocolVersionSupplied
+	}
+
 	protocol, err := strconv.Atoi(strProtocol)
 	if err != nil {
 		return invalidVersionStringFormat
 	}
 
 	switch {
-	case strings.TrimSpace(strProtocol) == "":
-		return noProtocolVersionSupplied
 	case protocol != supportedProtocolVersion:
 		return unsupportedProtocolVersion
 	case !application.Enabled:
