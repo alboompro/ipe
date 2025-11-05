@@ -356,7 +356,7 @@ func TestEndToEnd_MultipleClientsSameChannel(t *testing.T) {
 		// Read connection_established
 		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:gosec
 		var connEst events.ConnectionEstablished
-			if readErr := conn.ReadJSON(&connEst); readErr != nil { //nolint:gosec
+		if readErr := conn.ReadJSON(&connEst); readErr != nil { //nolint:gosec
 			t.Fatalf("Failed to read connection_established: %v", readErr)
 		}
 

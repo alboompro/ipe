@@ -96,7 +96,7 @@ func main() {
 	http.HandleFunc("/trigger", triggerMessage)
 	http.HandleFunc("/hook", hookcallback)
 	http.Handle("/", http.FileServer(http.Dir("./")))
-	
+
 	server := &http.Server{
 		Addr:         ":5000",
 		ReadTimeout:  15 * time.Second,

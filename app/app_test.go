@@ -512,8 +512,8 @@ func TestPublish_MultipleChannels(t *testing.T) {
 	app.AddChannel(channel2Obj)
 
 	// Subscribe to both channels
-	_ = app.Subscribe(channel1, conn, "")       //nolint:gosec
-	_ = app.Subscribe(channel2Obj, conn, "")    //nolint:gosec
+	_ = app.Subscribe(channel1, conn, "")    //nolint:gosec
+	_ = app.Subscribe(channel2Obj, conn, "") //nolint:gosec
 
 	// Clear messages
 	mockSocket.ClearMessages()
@@ -557,8 +557,8 @@ func TestDisconnect_UnsubscribesFromChannels(t *testing.T) {
 	app.AddChannel(channel2Obj)
 
 	// Subscribe to both channels
-	_ = app.Subscribe(channel1, conn, "")       //nolint:gosec
-	_ = app.Subscribe(channel2Obj, conn, "")    //nolint:gosec
+	_ = app.Subscribe(channel1, conn, "")    //nolint:gosec
+	_ = app.Subscribe(channel2Obj, conn, "") //nolint:gosec
 
 	// Disconnect
 	app.Disconnect("socket-1")

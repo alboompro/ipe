@@ -73,10 +73,10 @@ func TestNewClient(t *testing.T) {
 	}()
 
 	// Set test environment
-	_ = os.Setenv("REDIS_HOST", "localhost")   //nolint:gosec
-	_ = os.Setenv("REDIS_PORT", "6379")        //nolint:gosec
-	_ = os.Setenv("REDIS_DB", "0")             //nolint:gosec
-	_ = os.Unsetenv("REDIS_PASSWORD")         //nolint:gosec
+	_ = os.Setenv("REDIS_HOST", "localhost") //nolint:gosec
+	_ = os.Setenv("REDIS_PORT", "6379")      //nolint:gosec
+	_ = os.Setenv("REDIS_DB", "0")           //nolint:gosec
+	_ = os.Unsetenv("REDIS_PASSWORD")        //nolint:gosec
 
 	client, err := NewClient()
 	if err != nil {
