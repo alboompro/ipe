@@ -81,11 +81,11 @@ jobs:
             exit 1
           fi
 
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
       - name: Run staticcheck
-        uses: dominikh/staticcheck-action@v1.3.1
-        with:
-          version: "2024.1.2"
-          args: "./..."
+        run: $(go env GOPATH)/bin/staticcheck ./...
 
   build:
     name: Build
