@@ -18,9 +18,9 @@ type MockRedisClient struct {
 	mu                    sync.RWMutex
 	connections           map[string]*redis.ConnectionMetadata
 	subscriptions         map[string]map[string]*redis.SubscriptionMetadata // channel -> socketID -> metadata
-	channelSubscriptions  map[string][]string                                // channel -> []socketID
-	presenceData          map[string]map[string]string                        // channel -> socketID -> userID
-	presenceUserInfo      map[string]string                                  // key -> userInfo
+	channelSubscriptions  map[string][]string                               // channel -> []socketID
+	presenceData          map[string]map[string]string                      // channel -> socketID -> userID
+	presenceUserInfo      map[string]string                                 // key -> userInfo
 	pubSubChannels        map[string]chan *redis.EventMessage
 	pubSubSubscribers     map[string][]chan *redis.EventMessage
 	instanceID            string
@@ -35,10 +35,10 @@ func NewMockRedisClient() *MockRedisClient {
 		subscriptions:        make(map[string]map[string]*redis.SubscriptionMetadata),
 		channelSubscriptions: make(map[string][]string),
 		presenceData:         make(map[string]map[string]string),
-		presenceUserInfo:      make(map[string]string),
+		presenceUserInfo:     make(map[string]string),
 		pubSubChannels:       make(map[string]chan *redis.EventMessage),
 		pubSubSubscribers:    make(map[string][]chan *redis.EventMessage),
-		instanceID:            uuid.New().String(),
+		instanceID:           uuid.New().String(),
 	}
 }
 
@@ -129,7 +129,7 @@ func (m *MockRedisClient) SubscribeToChannel(appID, channelID, socketID, channel
 		SocketID:     socketID,
 		InstanceID:   m.instanceID,
 		ChannelID:    channelID,
-		ChannelData: channelData,
+		ChannelData:  channelData,
 		SubscribedAt: time.Now(),
 	}
 
@@ -339,4 +339,3 @@ func (m *MockRedisClient) GetSubscriptionCount() int {
 	}
 	return count
 }
-

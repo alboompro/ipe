@@ -974,4 +974,3 @@ func readNextMessage(conn *websocket.Conn, timeout time.Duration) (map[string]in
 func isCloseError(err error) bool {
 	return err == io.EOF || websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure)
 }
-

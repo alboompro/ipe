@@ -74,4 +74,3 @@ func GetAppFromStorage(s storage.Storage) (*app.Application, error) {
 	}
 	return nil, errors.New("no app found in storage")
 }
-

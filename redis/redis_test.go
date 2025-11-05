@@ -429,4 +429,3 @@ func TestGetInstanceID(t *testing.T) {
 		t.Error("Expected second instance ID to be non-empty")
 	}
 }
-
