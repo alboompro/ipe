@@ -198,8 +198,23 @@ func (c *Channel) Subscribe(conn *connection.Connection, channelData string) err
 		}
 
 		// pusher_internal:subscription_succeeded
+		// Copy subscription data while holding lock to avoid race condition
+		// We need to snapshot the ID and Data fields since they can be modified concurrently
+		c.Lock()
+		subscriptionsSnapshot := make(map[string]*subscription.Subscription, len(c.subscriptions))
+		for k, v := range c.subscriptions {
+			// Create a copy of the subscription with current values
+			subCopy := &subscription.Subscription{
+				Connection: v.Connection,
+				ID:         v.ID,
+				Data:       v.Data,
+			}
+			subscriptionsSnapshot[k] = subCopy
+		}
+		c.Unlock()
+
 		data := make(map[string]events.SubscriptionSucceededPresenceData)
-		data["presence"] = events.NewSubscriptionSucceedPresenceData(c.subscriptions)
+		data["presence"] = events.NewSubscriptionSucceedPresenceData(subscriptionsSnapshot)
 
 		js, err = json.Marshal(data)
 
