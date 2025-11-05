@@ -2,14 +2,6 @@ run:
   timeout: 5m
   tests: true
 
-issues:
-  exclude-dirs:
-    - vendor
-    - testutils
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*\\.generated\\.go$"
-
 linters:
   enable:
     - errcheck
@@ -95,6 +87,12 @@ linters-settings:
     checks: ["all"]
 
 issues:
+  exclude-dirs:
+    - vendor
+    - testutils
+  exclude-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.generated\\.go$"
   exclude-rules:
     - path: _test\.go
       linters:
