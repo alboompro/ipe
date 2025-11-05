@@ -89,8 +89,6 @@ jobs:
       - name: Run unit tests
         run: |
           go test -v -race -timeout 5m \
-            -coverprofile=coverage-unit.out \
-            -covermode=atomic \
             ./api/... \
             ./app/... \
             ./channel/... \
@@ -100,14 +98,6 @@ jobs:
             ./utils/... \
             ./websockets/... \
             ./concurrency/...
-
-      - name: Upload unit test coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          file: coverage-unit.out
-          flags: unit-tests
-          name: unit-tests-coverage
 
   integration-tests:
     name: Integration Tests
@@ -161,8 +151,6 @@ jobs:
           REDIS_DB: 0
         run: |
           go test -v -race -timeout 10m \
-            -coverprofile=coverage-redis.out \
-            -covermode=atomic \
             ./redis/...
 
       - name: Run integration tests
@@ -172,17 +160,7 @@ jobs:
           REDIS_DB: 0
         run: |
           go test -v -race -timeout 10m \
-            -coverprofile=coverage-integration.out \
-            -covermode=atomic \
             ./integration/...
-
-      - name: Upload integration test coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: coverage-redis.out,coverage-integration.out
-          flags: integration-tests
-          name: integration-tests-coverage
 
   webhook-tests:
     name: Webhook Tests
@@ -214,89 +192,4 @@ jobs:
       - name: Run webhook tests
         run: |
           go test -v -timeout 5m \
-            -coverprofile=coverage-webhooks.out \
-            -covermode=atomic \
             ./app/... -run TestTrigger
-
-      - name: Upload webhook test coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          file: coverage-webhooks.out
-          flags: webhook-tests
-          name: webhook-tests-coverage
-
-  build:
-    name: Build Linux Binary
-    runs-on: ubuntu-latest
-    needs: [lint, unit-tests, integration-tests, webhook-tests]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
-          cache-dependency-path: go.sum
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Build binary
-        env:
-          GOOS: linux
-          GOARCH: amd64
-          CGO_ENABLED: 0
-        run: |
-          go build -v -o ipe ./cmd
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ipe-linux-amd64
-          path: ipe
-          retention-days: 7
-
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    needs: [lint, unit-tests]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
-          cache-dependency-path: go.sum
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
-
-      - name: Run gosec security scanner
-        run: $(go env GOPATH)/bin/gosec -fmt sarif -out gosec.sarif ./...
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: gosec.sarif

@@ -6,7 +6,6 @@ package websockets
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -960,17 +959,4 @@ func TestWebSocket_ConnectionClose_EOF(t *testing.T) {
 	if err == nil {
 		t.Error("Connection should be removed after EOF")
 	}
-}
-
-// Helper function to read next message with timeout
-func readNextMessage(conn *websocket.Conn, timeout time.Duration) (map[string]interface{}, error) {
-	conn.SetReadDeadline(time.Now().Add(timeout))
-	var msg map[string]interface{}
-	err := conn.ReadJSON(&msg)
-	return msg, err
-}
-
-// Helper function to check if error is EOF or close error
-func isCloseError(err error) bool {
-	return err == io.EOF || websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure)
 }

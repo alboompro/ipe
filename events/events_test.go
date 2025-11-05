@@ -12,7 +12,7 @@ func Test_newErrorEvent_with_invalid_code(t *testing.T) {
 	data, _ := json.Marshal(event)
 	expected := `{"event":"pusher:error","data":{"code":null,"message":"The error message"}}`
 
-	if bytes.Compare(data, []byte(expected)) != 0 {
+	if !bytes.Equal(data, []byte(expected)) {
 		t.Errorf("%s != %s", string(data), expected)
 	}
 }
@@ -23,7 +23,7 @@ func Test_newErrorEvent_with_valid_code(t *testing.T) {
 	data, _ := json.Marshal(event)
 	expected := `{"event":"pusher:error","data":{"code":4007,"message":"Unsupported protocol version"}}`
 
-	if bytes.Compare(data, []byte(expected)) != 0 {
+	if !bytes.Equal(data, []byte(expected)) {
 		t.Errorf("%s != %s", string(data), expected)
 	}
 }

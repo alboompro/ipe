@@ -115,15 +115,12 @@ func handleMessages(conn *websocket.Conn, sessionID string, application *app.App
 
 	// Start a goroutine to send ping messages
 	go func() {
-		for {
-			select {
-			case <-pingTicker.C:
-				if err := conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
-					return
-				}
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					return
-				}
+		for range pingTicker.C {
+			if err := conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
+				return
+			}
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
 			}
 		}
 	}()

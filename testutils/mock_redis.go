@@ -15,17 +15,16 @@ import (
 
 // MockRedisClient is a mock implementation of Redis client for testing
 type MockRedisClient struct {
-	mu                    sync.RWMutex
-	connections           map[string]*redis.ConnectionMetadata
-	subscriptions         map[string]map[string]*redis.SubscriptionMetadata // channel -> socketID -> metadata
-	channelSubscriptions  map[string][]string                               // channel -> []socketID
-	presenceData          map[string]map[string]string                      // channel -> socketID -> userID
-	presenceUserInfo      map[string]string                                 // key -> userInfo
-	pubSubChannels        map[string]chan *redis.EventMessage
-	pubSubSubscribers     map[string][]chan *redis.EventMessage
-	instanceID            string
-	simulateConnectionErr bool
-	simulateOperationErr  bool
+	mu                   sync.RWMutex
+	connections          map[string]*redis.ConnectionMetadata
+	subscriptions        map[string]map[string]*redis.SubscriptionMetadata // channel -> socketID -> metadata
+	channelSubscriptions map[string][]string                               // channel -> []socketID
+	presenceData         map[string]map[string]string                      // channel -> socketID -> userID
+	presenceUserInfo     map[string]string                                 // key -> userInfo
+	pubSubChannels       map[string]chan *redis.EventMessage
+	pubSubSubscribers    map[string][]chan *redis.EventMessage
+	instanceID           string
+	simulateOperationErr bool
 }
 
 // NewMockRedisClient creates a new mock Redis client

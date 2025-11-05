@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -29,7 +29,7 @@ func pusherPresenceAuth(res http.ResponseWriter, req *http.Request) {
 		UserInfo: map[string]string{},
 	}
 
-	params, _ := ioutil.ReadAll(req.Body)
+	params, _ := io.ReadAll(req.Body)
 	response, err := client.AuthenticatePresenceChannel(params, presenceData)
 
 	if err != nil {
@@ -40,7 +40,7 @@ func pusherPresenceAuth(res http.ResponseWriter, req *http.Request) {
 }
 
 func pusherPrivateAuth(res http.ResponseWriter, req *http.Request) {
-	params, _ := ioutil.ReadAll(req.Body)
+	params, _ := io.ReadAll(req.Body)
 	response, err := client.AuthenticatePrivateChannel(params)
 
 	log.Printf("Private Request %s", params)

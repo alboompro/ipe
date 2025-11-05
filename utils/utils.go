@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-var channelValidationRegex = regexp.MustCompile("^[A-Za-z0-9_\\-=@,.;]+$")
+var channelValidationRegex = regexp.MustCompile(`^[A-Za-z0-9_\-=@,.;]+$`)
 
 // HashMAC Calculates the MAC signing with the given key and returns the hexadecimal encoded Result
 func HashMAC(message, key []byte) string {
