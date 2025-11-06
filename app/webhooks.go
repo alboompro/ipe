@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/golang/glog"
-
+	"go.uber.org/zap"
 	"ipe/channel"
+	"ipe/logger"
 	"ipe/subscription"
 	"ipe/utils"
 )
@@ -23,12 +23,13 @@ const maxTimeout = 3 * time.Second
 
 // A webHook is sent as a HTTP POST request to the url which you specify.
 // The POST request payload (body) contains a JSON document, and follows the following format:
-// {
-//   "time_ms": 1327078148132
-//   "events": [
-//     { "name": "event_name", "some": "data" }
-//   ]
-// }
+//
+//	{
+//	  "time_ms": 1327078148132
+//	  "events": [
+//	    { "name": "event_name", "some": "data" }
+//	  ]
+//	}
 //
 // Security
 // Encryption
@@ -38,8 +39,8 @@ const maxTimeout = 3 * time.Second
 //
 // Since anyone could in principle send WebHooks to your application, it’s important to verify that these WebHooks originated from Pusher. Valid WebHooks will therefore contain these headers which contain a HMAC signature of the webHook payload (body):
 //
-//     X-Pusher-Key: The App Key.
-//     X-Pusher-Signature: A HMAC SHA256 hex digest formed by signing the POST payload (body) with the token’s secret.
+//	X-Pusher-Key: The App Key.
+//	X-Pusher-Signature: A HMAC SHA256 hex digest formed by signing the POST payload (body) with the token’s secret.
 type webHook struct {
 	TimeMs int64       `json:"time_ms"`
 	Events []hookEvent `json:"events"`
@@ -82,7 +83,7 @@ func (a *Application) TriggerChannelOccupiedHook(c *channel.Channel) {
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
@@ -94,19 +95,20 @@ func (a *Application) TriggerChannelVacatedHook(c *channel.Channel) {
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
 // TriggerClientEventHook client_events
-// {
-//   "name": "client_event",
-//   "channel": "name of the channel the event was published on",
-//   "event": "name of the event",
-//   "data": "data associated with the event",
-//   "socket_id": "socket_id of the sending socket",
-//   "user_id": "user_id associated with the sending socket" # Only for presence channels
-// }
+//
+//	{
+//	  "name": "client_event",
+//	  "channel": "name of the channel the event was published on",
+//	  "event": "name of the event",
+//	  "data": "data associated with the event",
+//	  "socket_id": "socket_id of the sending socket",
+//	  "user_id": "user_id associated with the sending socket" # Only for presence channels
+//	}
 func (a *Application) TriggerClientEventHook(c *channel.Channel, s *subscription.Subscription, clientEvent string, data interface{}) {
 	event := newClientHook(c, s, clientEvent, data)
 
@@ -118,73 +120,70 @@ func (a *Application) TriggerClientEventHook(c *channel.Channel, s *subscription
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
 // TriggerMemberAddedHook member_added
-// {
-//   "name": "member_added",
-//   "channel": "presence-your_channel_name",
-//   "user_id": "a_user_id"
-// }
+//
+//	{
+//	  "name": "member_added",
+//	  "channel": "presence-your_channel_name",
+//	  "user_id": "a_user_id"
+//	}
 func (a *Application) TriggerMemberAddedHook(c *channel.Channel, s *subscription.Subscription) {
 	event := newMemberAddedHook(c, s)
 	ctx, cancel := context.WithTimeout(context.Background(), maxTimeout)
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
 // TriggerMemberRemovedHook member_removed
-// {
-//   "name": "member_removed",
-//   "channel": "presence-your_channel_name",
-//   "user_id": "a_user_id"
-// }
+//
+//	{
+//	  "name": "member_removed",
+//	  "channel": "presence-your_channel_name",
+//	  "user_id": "a_user_id"
+//	}
 func (a *Application) TriggerMemberRemovedHook(c *channel.Channel, s *subscription.Subscription) {
 	event := newMemberRemovedHook(c, s)
 	ctx, cancel := context.WithTimeout(context.Background(), maxTimeout)
 	defer cancel()
 
 	if err := triggerHook(ctx, a, event); err != nil {
-		log.Errorf("triggering webhook %+v", err)
+		logger.Error("Failed to trigger webhook", zap.Error(err), zap.String("hook_name", event.Name), zap.String("app_id", a.AppID))
 	}
 }
 
 func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 	if !a.WebHooks {
-		log.Infof("webhook are not enabled for app: %s", a.Name)
+		logger.Info("Webhooks not enabled", zap.String("app_name", a.Name), zap.String("app_id", a.AppID))
 		return fmt.Errorf("webhooks are not enabled for app: %s", a.Name)
 	}
 
 	done := make(chan bool)
 
 	go func() {
-		log.Infof("Triggering %s event", event.Name)
+		logger.Info("Triggering webhook event", zap.String("event_name", event.Name), zap.String("channel", event.Channel), zap.String("app_id", a.AppID))
 
 		hook := webHook{TimeMs: time.Now().Unix()}
 
 		hook.Events = append(hook.Events, event)
 
-		var js []byte
-		var err error
+		js, marshalErr := json.Marshal(hook)
 
-		js, err = json.Marshal(hook)
-
-		if err != nil {
-			log.Errorf("Error decoding json: %+v", err)
+		if marshalErr != nil {
+			logger.Error("Failed to marshal webhook JSON", zap.Error(marshalErr))
 			return
 		}
 
-		var req *http.Request
+		req, reqErr := http.NewRequest("POST", a.URLWebHook, bytes.NewReader(js))
 
-		req, err = http.NewRequest("POST", a.URLWebHook, bytes.NewReader(js))
-
-		if err != nil {
-			log.Errorf("Error creating request: %+v", err)
+		if reqErr != nil {
+			logger.Error("Failed to create webhook request", zap.Error(reqErr))
 			return
 		}
 
@@ -195,22 +194,23 @@ func triggerHook(ctx context.Context, a *Application, event hookEvent) error {
 		req.Header.Set("X-Pusher-Key", a.Key)
 		req.Header.Set("X-Pusher-Signature", utils.HashMAC(js, []byte(a.Secret)))
 
-		log.V(1).Infof("%+v", req.Header)
-		log.V(1).Infof("%+v", string(js))
+		logger.Debug("Sending webhook", zap.String("url", a.URLWebHook), zap.String("event_name", event.Name))
 
 		resp, err := http.DefaultClient.Do(req)
 
 		// See: http://devs.cloudimmunity.com/gotchas-and-common-mistakes-in-go-golang/index.html#close_http_resp_body
 		if resp != nil {
 			defer func() {
-				if err := resp.Body.Close(); err != nil {
-					log.Errorf("error closing response body %+v", err)
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					logger.Error("Error closing webhook response body", zap.Error(closeErr))
 				}
 			}()
 		}
 
 		if err != nil {
-			log.Errorf("error posting %s event: %+v", event.Name, err)
+			logger.Error("Failed to post webhook event", zap.Error(err), zap.String("event_name", event.Name))
+		} else {
+			logger.LogChannelEvent(event.Channel, string(js), fmt.Sprintf("Webhook %s sent successfully", event.Name), resp.StatusCode >= 200 && resp.StatusCode < 300)
 		}
 
 		// Successfully terminated

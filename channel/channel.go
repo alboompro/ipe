@@ -2,18 +2,20 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package channel provides channel management functionality for the IPE application.
 package channel
 
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
-	log "github.com/golang/glog"
-
+	"go.uber.org/zap"
 	"ipe/connection"
 	"ipe/events"
+	"ipe/logger"
 	"ipe/subscription"
 	"ipe/utils"
 )
@@ -45,7 +47,7 @@ type Channel struct {
 
 // New Create a new Channel
 func New(channelID string, options ...Option) *Channel {
-	log.Infof("Creating a new Channel: %s", channelID)
+	logger.Info("Creating new channel", zap.String("channel_id", channelID))
 
 	c := &Channel{ID: channelID, createdAt: time.Now(), subscriptions: make(map[string]*subscription.Subscription)}
 
@@ -154,7 +156,7 @@ func (c *Channel) TotalUsers() int {
 
 // Subscribe Add a new subscriber to the Channel
 func (c *Channel) Subscribe(conn *connection.Connection, channelData string) error {
-	log.Infof("Subscribing %s to Channel %s", conn.SocketID, c.ID)
+	logger.Info("Subscribing to channel", zap.String("socket_id", conn.SocketID), zap.String("channel_id", c.ID))
 
 	_subscription := subscription.New(conn, channelData)
 	c.Lock()
@@ -168,17 +170,17 @@ func (c *Channel) Subscribe(conn *connection.Connection, channelData string) err
 			UserInfo json.RawMessage `json:"user_info"`
 		}
 
-		log.Infof("%+v", channelData)
+		logger.Debug("Presence channel data", zap.String("channel_id", c.ID), zap.String("channel_data", channelData))
 
 		if err := json.Unmarshal([]byte(channelData), &info); err != nil {
-			log.Error(err)
+			logger.Error("Failed to unmarshal presence channel data", zap.Error(err), zap.String("channel_id", c.ID))
 			return err
 		}
 
 		js, err := info.UserInfo.MarshalJSON()
 
 		if err != nil {
-			log.Error(err)
+			logger.Error("Failed to marshal user info", zap.Error(err), zap.String("channel_id", c.ID))
 			return err
 		}
 
@@ -196,13 +198,28 @@ func (c *Channel) Subscribe(conn *connection.Connection, channelData string) err
 		}
 
 		// pusher_internal:subscription_succeeded
+		// Copy subscription data while holding lock to avoid race condition
+		// We need to snapshot the ID and Data fields since they can be modified concurrently
+		c.Lock()
+		subscriptionsSnapshot := make(map[string]*subscription.Subscription, len(c.subscriptions))
+		for k, v := range c.subscriptions {
+			// Create a copy of the subscription with current values
+			subCopy := &subscription.Subscription{
+				Connection: v.Connection,
+				ID:         v.ID,
+				Data:       v.Data,
+			}
+			subscriptionsSnapshot[k] = subCopy
+		}
+		c.Unlock()
+
 		data := make(map[string]events.SubscriptionSucceededPresenceData)
-		data["presence"] = events.NewSubscriptionSucceedPresenceData(c.subscriptions)
+		data["presence"] = events.NewSubscriptionSucceedPresenceData(subscriptionsSnapshot)
 
 		js, err = json.Marshal(data)
 
 		if err != nil {
-			log.Error(err)
+			logger.Error("Failed to marshal presence data", zap.Error(err), zap.String("channel_id", c.ID))
 			return err
 		}
 
@@ -232,7 +249,7 @@ func (c *Channel) IsSubscribed(conn *connection.Connection) bool {
 // Unsubscribe Remove the subscriber from the Channel
 // It destroy the Channel if the channels does not have any subscribers.
 func (c *Channel) Unsubscribe(conn *connection.Connection) error {
-	log.Infof("unsubscribe %s from Channel %s", conn.SocketID, c.ID)
+	logger.Info("Unsubscribing from channel", zap.String("socket_id", conn.SocketID), zap.String("channel_id", c.ID))
 
 	c.RLock()
 	_subscription, exists := c.subscriptions[conn.SocketID]
@@ -265,25 +282,25 @@ func (c *Channel) Unsubscribe(conn *connection.Connection) error {
 }
 
 // PublishMemberAddedEvent Publish a MemberAddedEvent to all subscriptions
-func (c *Channel) PublishMemberAddedEvent(data string, subscription *subscription.Subscription) {
+func (c *Channel) PublishMemberAddedEvent(data string, sub *subscription.Subscription) {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, subs := range c.subscriptions {
-		if subs != subscription {
+		if subs != sub {
 			subs.Connection.Publish(events.NewMemberAdded(c.ID, data))
 		}
 	}
 }
 
 // PublishMemberRemovedEvent Publish a MemberRemovedEvent to all subscriptions
-func (c *Channel) PublishMemberRemovedEvent(subscription *subscription.Subscription) {
+func (c *Channel) PublishMemberRemovedEvent(sub *subscription.Subscription) {
 	c.RLock()
 	defer c.RUnlock()
 
 	for _, subs := range c.subscriptions {
-		if subs != subscription {
-			subs.Connection.Publish(events.NewMemberRemoved(c.ID, subscription.ID))
+		if subs != sub {
+			subs.Connection.Publish(events.NewMemberRemoved(c.ID, sub.ID))
 		}
 	}
 }
@@ -306,16 +323,14 @@ func (c *Channel) Publish(event events.Raw, ignore string) error {
 		return err
 	}
 
-	log.Infof("Publishing message %+v to Channel %s", v, c.ID)
+	logger.LogChannelEvent(c.ID, fmt.Sprintf("%+v", v), "Publishing message to channel", true)
 
 	for _, subs := range c.subscriptions {
 		if subs.Connection.SocketID != ignore {
 			subs.Connection.Publish(events.NewResponse(event.Event, event.Channel, v))
-		} else {
-			if utils.IsClientEvent(event.Event) {
-				for _, hook := range c.clientEventListeners {
-					hook(c, subs, event.Event, v)
-				}
+		} else if utils.IsClientEvent(event.Event) {
+			for _, hook := range c.clientEventListeners {
+				hook(c, subs, event.Event, v)
 			}
 		}
 	}

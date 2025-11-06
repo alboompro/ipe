@@ -27,6 +27,25 @@ An open source Pusher server implementation compatible with Pusher client librar
 * Protocol version 7;
 * Multiple apps in the same instance;
 * Drop in replacement for pusher server;
+* Horizontal scaling with Redis;
+
+# Horizontal Scaling with Redis
+
+IPÊ uses Redis for cross-instance message distribution, enabling horizontal scaling across multiple pods or instances. This allows you to run multiple IPÊ instances behind a load balancer while ensuring all connected clients receive messages regardless of which instance they're connected to.
+
+## How it works
+
+When a client connects to one instance (e.g., Pod A) and subscribes to a channel, the subscription is registered both locally and in Redis. If a message is published to a different instance (e.g., Pod B), that instance:
+
+1. Publishes the message to its local connections
+2. Detects that there are subscribers on other instances via Redis
+3. Publishes the message to Redis Pub/Sub
+4. All instances subscribed to that channel receive the message via Redis
+5. Each instance delivers the message to its local connections
+
+This ensures that clients connected to any instance will receive messages published from any other instance, making IPÊ suitable for production deployments requiring high availability and scalability.
+
+**Note:** Redis is required for the server to start. The application will fail to initialize if it cannot connect to Redis.
 
 # Download pre built binaries
 
@@ -79,6 +98,64 @@ apps:
       url: "http://127.0.0.1:5000/hook"
 
 ```
+
+## Redis Configuration
+
+IPÊ requires Redis to be configured and running. Redis is used for:
+- Cross-instance message distribution via Pub/Sub
+- Connection and subscription metadata storage
+- Presence channel data synchronization
+
+### Environment Variables
+
+Redis is configured using the following environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_HOST` | `localhost` | Redis server hostname or IP address |
+| `REDIS_PORT` | `6379` | Redis server port |
+| `REDIS_PASSWORD` | (empty) | Redis password (if required) |
+| `REDIS_DB` | `0` | Redis database number |
+| `IPE_INSTANCE_ID` | (auto-generated) | Unique identifier for this instance (optional) |
+
+### Example Configuration
+
+For local development:
+
+```console
+$ export REDIS_HOST=localhost
+$ export REDIS_PORT=6379
+$ ./ipe -config config.yml
+```
+
+For production with authentication:
+
+```console
+$ export REDIS_HOST=redis.example.com
+$ export REDIS_PORT=6379
+$ export REDIS_PASSWORD=your-secure-password
+$ export REDIS_DB=0
+$ export IPE_INSTANCE_ID=pod-1
+$ ./ipe -config config.yml
+```
+
+### Quick Start with Docker
+
+For local development, you can quickly start Redis using Docker:
+
+```console
+$ docker run -d -p 6379:6379 --name ipe-redis redis:latest
+$ export REDIS_HOST=localhost
+$ export REDIS_PORT=6379
+$ ./ipe -config config.yml
+```
+
+### Production Considerations
+
+- **High Availability**: Use Redis Sentinel or Redis Cluster for production deployments
+- **Instance IDs**: Set unique `IPE_INSTANCE_ID` values for each pod/instance (e.g., using Kubernetes pod names or environment-specific identifiers)
+- **Connection Pooling**: The Redis client handles connection pooling automatically
+- **Data Expiration**: Connection and subscription metadata expires after 24 hours of inactivity
 
 ## Libraries
 
@@ -158,6 +235,7 @@ $ ipe -h
 * When you want to control your infrastructure;
 * When you do not want to have external dependencies;
 * When you want extend the protocol;
+* When you need scalable multi-instance deployments with horizontal scaling;
 
 # Contributing.
 

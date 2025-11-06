@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package utils
+package utils //nolint:revive // utils is a standard package name pattern
 
 import (
 	"regexp"

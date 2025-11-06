@@ -26,6 +26,12 @@ _testmain.go
 *.test
 *.prof
 
+# Coverage files
+*.out
+coverage.html
+coverage*.out
+coverage*.xml
+
 
 ### SublimeText ###
 # cache files for sublime text

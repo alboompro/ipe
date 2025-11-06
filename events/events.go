@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package events provides event definitions for the IPE application.
 package events
 
 import (
@@ -20,14 +21,15 @@ type SubscribeData struct {
 }
 
 // Subscribe event
-// {
-//     "event": "pusher:subscribe",
-//     "data": {
-//         "channel": "the channel",
-//         "auth": "the auth",
-//         "channelData": "extra data"
-//     }
-// }
+//
+//	{
+//	    "event": "pusher:subscribe",
+//	    "data": {
+//	        "channel": "the channel",
+//	        "auth": "the auth",
+//	        "channelData": "extra data"
+//	    }
+//	}
 type Subscribe struct {
 	Event string        `json:"event"`
 	Data  SubscribeData `json:"data"`
@@ -45,12 +47,13 @@ type UnsubscribeData struct {
 }
 
 // Unsubscribe event
-// {
-//     "event": "pusher:unsubscribe",
-//     "data": {
-//         "channel": "The channel"
-//     }
-// }
+//
+//	{
+//	    "event": "pusher:unsubscribe",
+//	    "data": {
+//	        "channel": "The channel"
+//	    }
+//	}
 type Unsubscribe struct {
 	Event string          `json:"event"`
 	Data  UnsubscribeData `json:"data"`
@@ -63,10 +66,11 @@ func NewUnsubscribe(channel string) Unsubscribe {
 }
 
 // SubscriptionSucceeded event
-// {
-//     "event": "pusher_internal:subscription_succeeded",
-//     "channel": "the channel"
-// }
+//
+//	{
+//	    "event": "pusher_internal:subscription_succeeded",
+//	    "channel": "the channel"
+//	}
 type SubscriptionSucceeded struct {
 	Event   string `json:"event"`
 	Channel string `json:"channel"`
@@ -79,24 +83,25 @@ func NewSubscriptionSucceeded(channel, data string) SubscriptionSucceeded {
 }
 
 // SubscriptionSucceededPresenceData Data Subscription Succeed
-// "{
-//     \"presence\": {
-//        \"ids\": [\"11814b369700141b222a3f3791cec2d9\",\"71dd6a29da2a4833336d2a964becf820\"],
-//        \"hash\": {
-//           \"11814b369700141b222a3f3791cec2d9\": {
-//              \"name\":\"Phil Leggetter\",
-//              \"twitter\": \"@leggetter\"
-//           },
-//           \"71dd6a29da2a4833336d2a964becf820\": {
-//              \"name\":\"Max Williams\",
-//              \"twitter\": \"@maxthelion\"
-//           }
-//        },
-//        \"count\": 2
-//     }
-// }"
+//
+//	"{
+//	    \"presence\": {
+//	       \"ids\": [\"11814b369700141b222a3f3791cec2d9\",\"71dd6a29da2a4833336d2a964becf820\"],
+//	       \"hash\": {
+//	          \"11814b369700141b222a3f3791cec2d9\": {
+//	             \"name\":\"Phil Leggetter\",
+//	             \"twitter\": \"@leggetter\"
+//	          },
+//	          \"71dd6a29da2a4833336d2a964becf820\": {
+//	             \"name\":\"Max Williams\",
+//	             \"twitter\": \"@maxthelion\"
+//	          }
+//	       },
+//	       \"count\": 2
+//	    }
+//	}"
 type SubscriptionSucceededPresenceData struct {
-	Ids   []string               `json:"ids"`
+	IDs   []string               `json:"ids"`
 	Hash  map[string]interface{} `json:"hash"`
 	Count int                    `json:"count"`
 }
@@ -121,7 +126,7 @@ func NewSubscriptionSucceedPresenceData(subscriptions map[string]*subscription.S
 		ids = append(ids, s.ID)
 	}
 
-	event.Ids = ids
+	event.IDs = ids
 	event.Hash = hash
 	event.Count = len(subscriptions)
 
@@ -129,10 +134,11 @@ func NewSubscriptionSucceedPresenceData(subscriptions map[string]*subscription.S
 }
 
 // Pong event
-// {
-//     "event": "pusher:pong",
-//     "data": {}
-// }
+//
+//	{
+//	    "event": "pusher:pong",
+//	    "data": {}
+//	}
 type Pong struct {
 	Event string `json:"event"`
 	Data  string `json:"data"`
@@ -144,10 +150,11 @@ func NewPong() Pong {
 }
 
 // Ping event
-// {
-//     "event": "pusher:ping",
-//     "data": {}
-// }
+//
+//	{
+//	    "event": "pusher:ping",
+//	    "data": {}
+//	}
 type Ping struct {
 	Event string `json:"event"`
 	Data  string `json:"data"`
@@ -159,13 +166,14 @@ func NewPing() Ping {
 }
 
 // Error event
-// {
-//     "event": "pusher:error",
-//     "data": {
-//         "message": "A Message",
-//         "code": 4000
-//     }
-// }
+//
+//	{
+//	    "event": "pusher:error",
+//	    "data": {
+//	        "message": "A Message",
+//	        "code": 4000
+//	    }
+//	}
 type Error struct {
 	Event string      `json:"event"`
 	Data  interface{} `json:"data"`
@@ -192,13 +200,14 @@ func NewError(code int, message string) Error {
 }
 
 // ConnectionEstablished event
-// {
-//     "event" : "pusher:connection_established",
-//     "data" : {
-//       "socket_id" : "123456",
-//       "activity_timeout" : 120
-//     }
-// }
+//
+//	{
+//	    "event" : "pusher:connection_established",
+//	    "data" : {
+//	      "socket_id" : "123456",
+//	      "activity_timeout" : 120
+//	    }
+//	}
 type ConnectionEstablished struct {
 	Event string `json:"event"`
 	Data  string `json:"data"`
@@ -221,11 +230,12 @@ func NewConnectionEstablished(socketID string) ConnectionEstablished {
 }
 
 // MemberAdded event
-// {
-//   "event": "pusher_internal:member_added",
-//   "channel": "presence-example-channel",
-//   "data": String
-// }
+//
+//	{
+//	  "event": "pusher_internal:member_added",
+//	  "channel": "presence-example-channel",
+//	  "data": String
+//	}
 type MemberAdded struct {
 	Event   string `json:"event"`
 	Channel string `json:"channel"`
@@ -238,11 +248,12 @@ func NewMemberAdded(channel, data string) MemberAdded {
 }
 
 // MemberRemoved event
-// {
-//   "event": "pusher_internal:member_removed",
-//   "channel": "presence-example-channel",
-//   "data": String
-// }
+//
+//	{
+//	  "event": "pusher_internal:member_removed",
+//	  "channel": "presence-example-channel",
+//	  "data": String
+//	}
 type MemberRemoved struct {
 	Event   string `json:"event"`
 	Channel string `json:"channel"`
@@ -250,7 +261,7 @@ type MemberRemoved struct {
 }
 
 // NewMemberRemoved returns a new MemberRemoved event
-func NewMemberRemoved(channel string, userID string) MemberRemoved {
+func NewMemberRemoved(channel, userID string) MemberRemoved {
 	data, err := json.Marshal(struct {
 		UserID string `json:"user_id"`
 	}{
@@ -265,11 +276,12 @@ func NewMemberRemoved(channel string, userID string) MemberRemoved {
 }
 
 // Raw event, usually used for client events
-// {
-//     "event": "client-?",
-//     "channel": "The channel",
-//     "data": {}
-// }
+//
+//	{
+//	    "event": "client-?",
+//	    "channel": "The channel",
+//	    "data": {}
+//	}
 type Raw struct {
 	Event   string          `json:"event"`
 	Channel string          `json:"channel"`

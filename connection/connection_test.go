@@ -11,7 +11,7 @@ import (
 
 func TestNewConnection(t *testing.T) {
 	expectedSocketID := "socketID"
-	expectedSocket := mocks.MockSocket{}
+	expectedSocket := mocks.NewMockSocket()
 
 	c := New(expectedSocketID, expectedSocket)
 
@@ -19,8 +19,13 @@ func TestNewConnection(t *testing.T) {
 		t.Errorf("c.SocketID == %s, wants %s", c.SocketID, expectedSocketID)
 	}
 
-	if c.Socket != expectedSocket {
-		t.Errorf("c.Socket == %v, wants %v", c.Socket, expectedSocket)
+	if c.Socket == nil {
+		t.Error("c.Socket should not be nil")
+	}
+
+	// Verify socket works by calling WriteJSON
+	if err := c.Socket.WriteJSON(map[string]string{"test": "data"}); err != nil {
+		t.Errorf("c.Socket.WriteJSON failed: %v", err)
 	}
 
 	if c.CreatedAt.IsZero() {

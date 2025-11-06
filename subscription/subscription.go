@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package subscription provides subscription management functionality for the IPE application.
 package subscription
 
 import "ipe/connection"

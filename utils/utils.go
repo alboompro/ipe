@@ -2,6 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
+// Package utils provides utility functions for the IPE application.
 package utils
 
 import (
@@ -15,7 +16,7 @@ import (
 	"strings"
 )
 
-var channelValidationRegex = regexp.MustCompile("^[A-Za-z0-9_\\-=@,.;]+$")
+var channelValidationRegex = regexp.MustCompile(`^[A-Za-z0-9_\-=@,.;]+$`)
 
 // HashMAC Calculates the MAC signing with the given key and returns the hexadecimal encoded Result
 func HashMAC(message, key []byte) string {
@@ -28,7 +29,7 @@ func HashMAC(message, key []byte) string {
 
 // GenerateSessionID Generate a new random Hash
 func GenerateSessionID() string {
-	return fmt.Sprintf("%d.%d", rand.Intn(math.MaxInt32), rand.Intn(math.MaxInt32))
+	return fmt.Sprintf("%d.%d", rand.Intn(math.MaxInt32), rand.Intn(math.MaxInt32)) //nolint:gosec
 }
 
 // IsChannelNameValid Verify if the channel name is valid

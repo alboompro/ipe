@@ -11,14 +11,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
-	log "github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 
 	"ipe/app"
 	"ipe/connection"
 	"ipe/events"
+	"ipe/logger"
 	"ipe/storage"
 	"ipe/utils"
 )
@@ -32,7 +34,18 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(_ *http.Request) bool {
 		return true
 	},
+	// Enable compression for better performance
+	EnableCompression: true,
 }
+
+const (
+	// WriteWait is the time allowed to write a message to the peer
+	WriteWait = 10 * time.Second
+	// PongWait is the time allowed to read the next pong message from the peer
+	PongWait = 60 * time.Second
+	// PingPeriod is how often to send pings to peer (must be less than PongWait)
+	PingPeriod = (PongWait * 9) / 10
+)
 
 // Websocket handler for real time websocket messages
 type Websocket struct {
@@ -40,8 +53,8 @@ type Websocket struct {
 }
 
 // NewWebsocket returns a new Websocket handler
-func NewWebsocket(storage storage.Storage) *Websocket {
-	return &Websocket{storage: storage}
+func NewWebsocket(storageInstance storage.Storage) *Websocket {
+	return &Websocket{storage: storageInstance}
 }
 
 // ServeHTTP Websocket GET /app/{key}
@@ -49,14 +62,14 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	defer func() {
 		if conn != nil {
-			if err := conn.Close(); err != nil {
-				log.Errorf("closing the websocket connection %+v", err)
+			if closeErr := conn.Close(); closeErr != nil {
+				logger.Error("Error closing websocket connection", zap.Error(closeErr))
 			}
 		}
 	}()
 
 	if err != nil {
-		log.Error(err)
+		logger.Error("Failed to upgrade websocket connection", zap.Error(err))
 		return
 	}
 
@@ -68,7 +81,7 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_app, err := h.storage.GetAppByKey(appKey)
 
 	if err != nil {
-		log.Error(err)
+		logger.Error("Application not found", zap.Error(err), zap.String("app_key", appKey))
 		emitError(applicationDoesNotExists, conn)
 		return
 	}
@@ -83,16 +96,49 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handleMessages(conn, sessionID, _app)
 }
 
-func handleMessages(conn *websocket.Conn, sessionID string, app *app.Application) {
+func handleMessages(conn *websocket.Conn, sessionID string, application *app.Application) {
+	// Set read deadline
+	if err := conn.SetReadDeadline(time.Now().Add(PongWait)); err != nil {
+		logger.Error("Failed to set read deadline", zap.Error(err))
+		return
+	}
+	conn.SetPongHandler(func(string) error {
+		if err := conn.SetReadDeadline(time.Now().Add(PongWait)); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	// Start ping ticker
+	pingTicker := time.NewTicker(PingPeriod)
+	defer pingTicker.Stop()
+
+	// Start a goroutine to send ping messages
+	go func() {
+		for range pingTicker.C {
+			if err := conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
+				return
+			}
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}()
+
 	var event struct {
 		Event string `json:"event"`
 	}
 
 	for {
+		// Set read deadline for next message
+		if err := conn.SetReadDeadline(time.Now().Add(PongWait)); err != nil {
+			logger.Error("Failed to set read deadline", zap.Error(err))
+			return
+		}
 		_, message, err := conn.ReadMessage()
 
 		if err != nil {
-			handleError(conn, sessionID, app, err)
+			handleError(conn, sessionID, application, err)
 			return
 		}
 
@@ -101,18 +147,18 @@ func handleMessages(conn *websocket.Conn, sessionID string, app *app.Application
 			return
 		}
 
-		log.Infof("websocket: Handling %s event", event.Event)
+		logger.Info("Handling websocket event", zap.String("event", event.Event), zap.String("socket_id", sessionID))
 
 		switch event.Event {
 		case "pusher:ping":
 			handlePing(conn)
 		case "pusher:subscribe":
-			handleSubscribe(conn, sessionID, app, message)
+			handleSubscribe(conn, sessionID, application, message)
 		case "pusher:unsubscribe":
-			handleUnsubscribe(conn, sessionID, app, message)
+			handleUnsubscribe(conn, sessionID, application, message)
 		default:
 			if utils.IsClientEvent(event.Event) {
-				handleClientEvent(conn, sessionID, app, message)
+				handleClientEvent(conn, sessionID, application, message)
 			}
 		}
 	}
@@ -123,26 +169,31 @@ func emitError(err *websocketError, conn *websocket.Conn) {
 	event := events.NewError(err.Code, err.Msg)
 
 	if err := conn.WriteJSON(event); err != nil {
-		log.Error(err)
+		logger.Error("Failed to write error to websocket", zap.Error(err))
 	}
 }
 
-func handleError(conn *websocket.Conn, sessionID string, app *app.Application, err error) {
-	log.Errorf("%+v", err)
+func handleError(conn *websocket.Conn, sessionID string, application *app.Application, err error) {
+	logger.Error("Websocket error", zap.Error(err), zap.String("socket_id", sessionID), zap.String("app_id", application.AppID))
 	if err == io.EOF {
-		onClose(sessionID, app)
+		onClose(sessionID, application)
 	} else if _, ok := err.(*websocket.CloseError); ok {
-		onClose(sessionID, app)
+		onClose(sessionID, application)
 	} else {
 		emitError(reconnectImmediately, conn)
 	}
 }
 
-func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, app *app.Application) *websocketError {
+func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, application *app.Application) *websocketError {
 	var (
 		queryVars   = r.URL.Query()
 		strProtocol = queryVars.Get("protocol")
 	)
+
+	// Check if protocol is empty first
+	if strings.TrimSpace(strProtocol) == "" {
+		return noProtocolVersionSupplied
+	}
 
 	protocol, err := strconv.Atoi(strProtocol)
 	if err != nil {
@@ -150,13 +201,11 @@ func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, app *app.Ap
 	}
 
 	switch {
-	case strings.TrimSpace(strProtocol) == "":
-		return noProtocolVersionSupplied
 	case protocol != supportedProtocolVersion:
 		return unsupportedProtocolVersion
-	case !app.Enabled:
+	case !application.Enabled:
 		return applicationDisabled
-	case app.OnlySSL:
+	case application.OnlySSL:
 		if r.TLS == nil {
 			return applicationOnlyAcceptsSSL
 		}
@@ -164,7 +213,7 @@ func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, app *app.Ap
 
 	// Create the new Subscriber
 	_connection := connection.New(sessionID, conn)
-	app.Connect(_connection)
+	application.Connect(_connection)
 
 	// Everything went fine.
 	if err := conn.WriteJSON(events.NewConnectionEstablished(_connection.SocketID)); err != nil {
@@ -174,30 +223,35 @@ func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, app *app.Ap
 	return nil
 }
 
-func onClose(sessionID string, app *app.Application) {
-	app.Disconnect(sessionID)
+func onClose(sessionID string, application *app.Application) {
+	application.Disconnect(sessionID)
 }
 
 func handlePing(conn *websocket.Conn) {
+	if err := conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
+		logger.Error("Failed to set write deadline", zap.Error(err))
+		return
+	}
 	if err := conn.WriteJSON(events.NewPong()); err != nil {
+		logger.Error("Failed to write pong", zap.Error(err))
 		emitError(reconnectImmediately, conn)
 	}
 }
 
-func handleClientEvent(conn *websocket.Conn, sessionID string, app *app.Application, message []byte) {
-	if !app.UserEvents {
+func handleClientEvent(conn *websocket.Conn, sessionID string, application *app.Application, message []byte) {
+	if !application.UserEvents {
 		emitError(&websocketError{Code: 0, Msg: "To send client events, you must enable this feature in the Settings."}, conn)
 	}
 
 	clientEvent := events.Raw{}
 
 	if err := json.Unmarshal(message, &clientEvent); err != nil {
-		log.Error(err)
+		logger.Error("Failed to unmarshal client event", zap.Error(err))
 		emitError(reconnectImmediately, conn)
 		return
 	}
 
-	channel, err := app.FindChannelByChannelID(clientEvent.Channel)
+	channel, err := application.FindChannelByChannelID(clientEvent.Channel)
 
 	if err != nil {
 		emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a channel with the id %s", clientEvent.Channel)}, conn)
@@ -209,14 +263,14 @@ func handleClientEvent(conn *websocket.Conn, sessionID string, app *app.Applicat
 		return
 	}
 
-	if err := app.Publish(channel, clientEvent, sessionID); err != nil {
-		log.Error(err)
+	if err := application.Publish(channel, clientEvent, sessionID); err != nil {
+		logger.Error("Failed to publish client event", zap.Error(err), zap.String("channel", clientEvent.Channel), zap.String("socket_id", sessionID))
 		emitError(reconnectImmediately, conn)
 		return
 	}
 }
 
-func handleUnsubscribe(conn *websocket.Conn, sessionID string, app *app.Application, message []byte) {
+func handleUnsubscribe(conn *websocket.Conn, sessionID string, application *app.Application, message []byte) {
 	unsubscribeEvent := events.Unsubscribe{}
 
 	if err := json.Unmarshal(message, &unsubscribeEvent); err != nil {
@@ -224,27 +278,27 @@ func handleUnsubscribe(conn *websocket.Conn, sessionID string, app *app.Applicat
 		return
 	}
 
-	_connection, err := app.FindConnection(sessionID)
+	_connection, err := application.FindConnection(sessionID)
 
 	if err != nil {
 		emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a connection with the id %s", sessionID)}, conn)
 		return
 	}
 
-	channel, err := app.FindChannelByChannelID(unsubscribeEvent.Data.Channel)
+	channel, err := application.FindChannelByChannelID(unsubscribeEvent.Data.Channel)
 
 	if err != nil {
 		emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a channel with the id %s", unsubscribeEvent.Data.Channel)}, conn)
 		return
 	}
 
-	if err := app.Unsubscribe(channel, _connection); err != nil {
+	if err := application.Unsubscribe(channel, _connection); err != nil {
 		emitError(reconnectImmediately, conn)
 		return
 	}
 }
 
-func handleSubscribe(conn *websocket.Conn, sessionID string, app *app.Application, message []byte) {
+func handleSubscribe(conn *websocket.Conn, sessionID string, application *app.Application, message []byte) {
 	subscribeEvent := events.Subscribe{}
 
 	if err := json.Unmarshal(message, &subscribeEvent); err != nil {
@@ -252,7 +306,7 @@ func handleSubscribe(conn *websocket.Conn, sessionID string, app *app.Applicatio
 		return
 	}
 
-	_connection, err := app.FindConnection(sessionID)
+	_connection, err := application.FindConnection(sessionID)
 
 	if err != nil {
 		emitError(reconnectImmediately, conn)
@@ -272,25 +326,25 @@ func handleSubscribe(conn *websocket.Conn, sessionID string, app *app.Applicatio
 	if isPresence || isPrivate {
 		toSign := []string{_connection.SocketID, channelName}
 
-		if isPresence || len(subscribeEvent.Data.ChannelData) > 0 {
+		if isPresence || subscribeEvent.Data.ChannelData != "" {
 			toSign = append(toSign, subscribeEvent.Data.ChannelData)
 		}
 
-		if !validateAuthKey(subscribeEvent.Data.Auth, toSign, app) {
+		if !validateAuthKey(subscribeEvent.Data.Auth, toSign, application) {
 			emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Auth value for subscription to %s is invalid", channelName)}, conn)
 			return
 		}
 	}
 
-	channel := app.FindOrCreateChannelByChannelID(channelName)
-	log.Info(subscribeEvent.Data.ChannelData)
+	channel := application.FindOrCreateChannelByChannelID(channelName)
+	logger.Debug("Channel subscription data", zap.String("channel_id", channelName), zap.String("channel_data", subscribeEvent.Data.ChannelData))
 
-	if err := app.Subscribe(channel, _connection, subscribeEvent.Data.ChannelData); err != nil {
+	if err := application.Subscribe(channel, _connection, subscribeEvent.Data.ChannelData); err != nil {
 		emitError(reconnectImmediately, conn)
 	}
 }
 
-func validateAuthKey(givenAuthKey string, toSign []string, app *app.Application) bool {
-	expectedAuthKey := fmt.Sprintf("%s:%s", app.Key, utils.HashMAC([]byte(strings.Join(toSign, ":")), []byte(app.Secret)))
+func validateAuthKey(givenAuthKey string, toSign []string, application *app.Application) bool {
+	expectedAuthKey := fmt.Sprintf("%s:%s", application.Key, utils.HashMAC([]byte(strings.Join(toSign, ":")), []byte(application.Secret)))
 	return givenAuthKey == expectedAuthKey
 }
