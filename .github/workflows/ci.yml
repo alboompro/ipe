@@ -137,12 +137,16 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Install redis-cli
+        run: sudo apt-get update && sudo apt-get install -y redis-tools
+
       - name: Wait for Redis
         run: |
           until redis-cli -h localhost -p 6379 ping; do
             echo "Waiting for Redis..."
             sleep 2
           done
+          echo "Redis is ready!"
 
       - name: Run Redis integration tests
         env:
