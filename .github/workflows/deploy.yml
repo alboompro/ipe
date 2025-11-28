@@ -1,19 +1,12 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
-    branches:
-      - master
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy IPE
-    if: github.event.workflow_run.conclusion == 'success'
     env:
       ECR_REPOSITORY: ipe
       EKS_CLUSTER: k8s-cluster-3
@@ -21,8 +14,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -42,7 +33,7 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           # Build with inline caching (cache is embedded in the image itself)
           docker buildx build \
