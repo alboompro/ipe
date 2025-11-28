@@ -7,10 +7,12 @@ package redis
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,10 +22,12 @@ import (
 )
 
 // Client wraps the Redis client with helper methods
+// Supports both standalone Redis and Redis Cluster
 type Client struct {
-	rdb        *redisv9.Client
+	rdb        redisv9.UniversalClient
 	instanceID string
 	ctx        context.Context
+	isCluster  bool
 }
 
 // ConnectionMetadata stores connection information in Redis
@@ -53,12 +57,26 @@ type EventMessage struct {
 }
 
 // NewClient creates a new Redis client with configuration from environment variables
+// Supports both standalone Redis and Redis Cluster modes.
+//
+// Environment variables:
+//   - REDIS_HOST: Redis server hostname (default: localhost)
+//   - REDIS_PORT: Redis server port (default: 6379)
+//   - REDIS_PASSWORD: Redis password (default: empty)
+//   - REDIS_DB: Redis database number, ignored in cluster mode (default: 0)
+//   - REDIS_CLUSTER_MODE: Set to "true" to enable cluster mode (default: false)
+//   - REDIS_ADDRS: Comma-separated list of cluster node addresses (optional, used in cluster mode)
+//   - REDIS_TLS_ENABLED: Set to "true" to enable TLS (default: false)
+//   - IPE_INSTANCE_ID: Unique instance identifier (default: auto-generated UUID)
 func NewClient() (*Client, error) {
 	host := getEnv("REDIS_HOST", "localhost")
 	port := getEnv("REDIS_PORT", "6379")
 	password := getEnv("REDIS_PASSWORD", "")
 	dbStr := getEnv("REDIS_DB", "0")
 	instanceID := getEnv("IPE_INSTANCE_ID", "")
+	clusterMode := strings.ToLower(getEnv("REDIS_CLUSTER_MODE", "false")) == "true"
+	addrsStr := getEnv("REDIS_ADDRS", "")
+	tlsEnabled := strings.ToLower(getEnv("REDIS_TLS_ENABLED", "false")) == "true"
 
 	db, err := strconv.Atoi(dbStr)
 	if err != nil {
@@ -72,13 +90,58 @@ func NewClient() (*Client, error) {
 		logger.Info("Using provided instance ID", zap.String("instance_id", instanceID))
 	}
 
-	rdb := redisv9.NewClient(&redisv9.Options{
-		Addr:     fmt.Sprintf("%s:%s", host, port),
-		Password: password,
-		DB:       db,
-	})
+	// Clean host from any protocol prefix
+	host = strings.TrimPrefix(host, "redis://")
+	host = strings.TrimPrefix(host, "rediss://")
 
 	ctx := context.Background()
+
+	var rdb redisv9.UniversalClient
+
+	if clusterMode {
+		// Redis Cluster mode
+		var addrs []string
+		if addrsStr != "" {
+			// Use provided addresses
+			addrs = strings.Split(addrsStr, ",")
+			for i, addr := range addrs {
+				addrs[i] = strings.TrimSpace(addr)
+			}
+		} else {
+			// Use host:port as the cluster config endpoint
+			addrs = []string{fmt.Sprintf("%s:%s", host, port)}
+		}
+
+		clusterOpts := &redisv9.ClusterOptions{
+			Addrs:    addrs,
+			Password: password,
+		}
+
+		if tlsEnabled {
+			clusterOpts.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+		}
+
+		rdb = redisv9.NewClusterClient(clusterOpts)
+		logger.Info("Using Redis Cluster mode", zap.Strings("addrs", addrs), zap.Bool("tls", tlsEnabled))
+	} else {
+		// Standalone Redis mode
+		opts := &redisv9.Options{
+			Addr:     fmt.Sprintf("%s:%s", host, port),
+			Password: password,
+			DB:       db,
+		}
+
+		if tlsEnabled {
+			opts.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+		}
+
+		rdb = redisv9.NewClient(opts)
+		logger.Info("Using standalone Redis mode", zap.String("host", host), zap.String("port", port), zap.Int("db", db), zap.Bool("tls", tlsEnabled))
+	}
 
 	// Test connection
 	_, err = rdb.Ping(ctx).Result()
@@ -86,18 +149,24 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	logger.Info("Connected to Redis", zap.String("host", host), zap.String("port", port), zap.Int("db", db))
+	logger.Info("Connected to Redis successfully")
 
 	return &Client{
 		rdb:        rdb,
 		instanceID: instanceID,
 		ctx:        ctx,
+		isCluster:  clusterMode,
 	}, nil
 }
 
 // GetInstanceID returns the instance ID
 func (c *Client) GetInstanceID() string {
 	return c.instanceID
+}
+
+// IsCluster returns true if the client is connected to a Redis Cluster
+func (c *Client) IsCluster() bool {
+	return c.isCluster
 }
 
 // RegisterConnection registers a connection in Redis

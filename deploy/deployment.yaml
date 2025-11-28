@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+  labels:
+    app: ${APP_NAME}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_NAME}
+    spec:
+      containers:
+      - name: ${APP_NAME}
+        image: ${APP_IMAGE_URL}:${APP_IMAGE_TAG}
+        imagePullPolicy: Always
+        command: ["/bin/ipe"]
+        args: ["--config", "/config/config.yml"]
+        ports:
+        - containerPort: ${APP_PORT}
+          name: http
+        - containerPort: 4433
+          name: https
+        envFrom:
+        - configMapRef:
+            name: ${APP_NAME}-env
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: ${APP_NAME}-config
+

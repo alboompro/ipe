@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package utils provides utility functions for the IPE application.
-package utils
+package utils //nolint:revive // utils is a standard package name pattern
 
 import (
 	"crypto/hmac"

@@ -115,12 +115,15 @@ Redis is configured using the following environment variables:
 | `REDIS_HOST` | `localhost` | Redis server hostname or IP address |
 | `REDIS_PORT` | `6379` | Redis server port |
 | `REDIS_PASSWORD` | (empty) | Redis password (if required) |
-| `REDIS_DB` | `0` | Redis database number |
+| `REDIS_DB` | `0` | Redis database number (ignored in cluster mode) |
+| `REDIS_CLUSTER_MODE` | `false` | Set to `true` to enable Redis Cluster mode |
+| `REDIS_ADDRS` | (empty) | Comma-separated list of cluster node addresses (optional) |
+| `REDIS_TLS_ENABLED` | `false` | Set to `true` to enable TLS/SSL connections |
 | `IPE_INSTANCE_ID` | (auto-generated) | Unique identifier for this instance (optional) |
 
 ### Example Configuration
 
-For local development:
+For local development (standalone):
 
 ```console
 $ export REDIS_HOST=localhost
@@ -128,7 +131,7 @@ $ export REDIS_PORT=6379
 $ ./ipe -config config.yml
 ```
 
-For production with authentication:
+For production with authentication (standalone):
 
 ```console
 $ export REDIS_HOST=redis.example.com
@@ -136,6 +139,17 @@ $ export REDIS_PORT=6379
 $ export REDIS_PASSWORD=your-secure-password
 $ export REDIS_DB=0
 $ export IPE_INSTANCE_ID=pod-1
+$ ./ipe -config config.yml
+```
+
+For Redis Cluster (e.g., AWS ElastiCache):
+
+```console
+$ export REDIS_HOST=clustercfg.your-cluster.region.cache.amazonaws.com
+$ export REDIS_PORT=6379
+$ export REDIS_CLUSTER_MODE=true
+$ export REDIS_TLS_ENABLED=true
+$ export REDIS_PASSWORD=your-auth-token
 $ ./ipe -config config.yml
 ```
 

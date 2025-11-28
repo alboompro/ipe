@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${APP_NAME}-config
+data:
+  config.yml: |
+    ---
+    host: ":8080"
+    profiling: false
+    ssl:
+      enabled: false
+      host: ":4433"
+      key_file: "/home/alboompro/push.alboompro.com/certificado.key"
+      cert_file: "/home/alboompro/push.alboompro.com/certificado.crt"
+    apps:
+      - name: "Alboom - Push Notification"
+        enabled: true
+        only_ssl: false
+        key: "GhtsQMe86m"
+        secret: "hDs8LG8WwAjL976HKxCG"
+        app_id: "alboom-push"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+      - name: "Realtime Users - Push Notification"
+        enabled: true
+        only_ssl: false
+        key: "3ZREcrR8z7"
+        secret: "CFrQoKhu4T7jVU7ED7g5"
+        app_id: "alboom-realtime-users"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+      - name: "Centralized logs"
+        enabled: true
+        only_ssl: false
+        key: "pBBR3eeG4M"
+        secret: "mQD3d7BPbzZFZ6XDQBV8"
+        app_id: "logs"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+      - name: "Alboom AR"
+        enabled: true
+        only_ssl: false
+        key: "aZDE0YTAyO"
+        secret: "d14a028c2a3a2bc94761"
+        app_id: "4"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+      - name: "Alboom Proof"
+        enabled: true
+        only_ssl: false
+        key: "uQ33Lo2C82"
+        secret: "DHQ8QUj6Vu32yARfMxk6"
+        app_id: "5"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+      - name: "Alboom Cloud"
+        enabled: true
+        only_ssl: false
+        key: "yHyUphXnvg"
+        secret: "h4APyizUMs9kmjoCFhCt"
+        app_id: "6"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+      - name: "Alboom Pay"
+        enabled: true
+        only_ssl: false
+        key: "xKxJlkHpck"
+        secret: "v3KPjuzTMs6pjkcTTpZa"
+        app_id: "alboom-pay-pusher"
+        user_events: true
+        webhooks:
+          enabled: false
+          url: "Some URL to send webhooks"
+

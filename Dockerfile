@@ -1,20 +1,25 @@
-FROM golang:alpine as builder
-RUN mkdir /build 
-ADD . /build/
-WORKDIR /build 
-RUN apk add git gcc musl-dev
-RUN go build -o ipe ./cmd
-FROM alpine
-USER root
-RUN  mkdir -p /config
-RUN adduser -S -D -H -h /app appuser
-COPY ./entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-USER appuser
-WORKDIR /app
-COPY --from=builder /build/ipe /app/
-COPY --from=builder /build/config-example.yml /app/config-example.yml
-VOLUME /config
-CMD ["/bin/sh", "/app/entrypoint.sh"]
-EXPOSE 4343
+# Build stage
+FROM golang:alpine AS builder
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ipe ./cmd
+
+# Runner Stage
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /build/ipe /bin/ipe
+
+RUN chmod +x /bin/ipe
+
 EXPOSE 8080
+EXPOSE 4433
+
+CMD ["/bin/ipe", "--config", "/config/config.yml"]
