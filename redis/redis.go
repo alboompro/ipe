@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 	"go.uber.org/zap"
 	"ipe/logger"
 )
@@ -115,6 +116,9 @@ func NewClient() (*Client, error) {
 		clusterOpts := &redisv9.ClusterOptions{
 			Addrs:    addrs,
 			Password: password,
+			MaintNotificationsConfig: &maintnotifications.Config{
+				Mode: maintnotifications.ModeDisabled,
+			},
 		}
 
 		if tlsEnabled {
@@ -131,6 +135,9 @@ func NewClient() (*Client, error) {
 			Addr:     fmt.Sprintf("%s:%s", host, port),
 			Password: password,
 			DB:       db,
+			MaintNotificationsConfig: &maintnotifications.Config{
+				Mode: maintnotifications.ModeDisabled,
+			},
 		}
 
 		if tlsEnabled {
