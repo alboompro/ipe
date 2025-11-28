@@ -25,11 +25,11 @@ func main() {
 // Print a beautiful banner
 func printBanner() {
 	// ANSI color codes for Alboom brand colors
-	pink := "\033[38;5;205m"    // #EE358E
-	purple := "\033[38;5;54m"   // #5F3494
-	orange := "\033[38;5;215m"  // #FCBA72
-	teal := "\033[38;5;72m"     // #55BFAB
-	cyan := "\033[38;5;81m"     // #5EC2EE
+	pink := "\033[38;5;205m"      // #EE358E
+	purple := "\033[38;5;54m"     // #5F3494
+	orange := "\033[38;5;215m"    // #FCBA72
+	teal := "\033[38;5;72m"       // #55BFAB
+	cyan := "\033[38;5;81m"       // #5EC2EE
 	darkPurple := "\033[38;5;53m" // #462F80
 	reset := "\033[0m"
 
