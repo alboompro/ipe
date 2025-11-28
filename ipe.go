@@ -114,12 +114,13 @@ func Start(filename string) {
 		go func() {
 			logger.Info("Starting HTTPS service", zap.String("host", conf.SSL.Host))
 			server := &http.Server{
-				Addr:    conf.SSL.Host,
-				Handler: router,
+				Addr:              conf.SSL.Host,
+				Handler:           router,
+				ReadHeaderTimeout: 10 * time.Second,
+				IdleTimeout:       120 * time.Second,
 				// Note: ReadTimeout/WriteTimeout are NOT set for WebSocket support
 				// WebSocket connections are long-lived and would be killed by these timeouts
 				// The WebSocket handler manages its own timeouts via ping/pong
-				IdleTimeout: 120 * time.Second,
 			}
 			logger.Fatal("HTTPS server failed", zap.Error(server.ListenAndServeTLS(conf.SSL.CertFile, conf.SSL.KeyFile)))
 		}()
@@ -127,12 +128,13 @@ func Start(filename string) {
 
 	logger.Info("Starting HTTP service", zap.String("host", conf.Host))
 	server := &http.Server{
-		Addr:    conf.Host,
-		Handler: router,
+		Addr:              conf.Host,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 		// Note: ReadTimeout/WriteTimeout are NOT set for WebSocket support
 		// WebSocket connections are long-lived and would be killed by these timeouts
 		// The WebSocket handler manages its own timeouts via ping/pong
-		IdleTimeout: 120 * time.Second,
 	}
 	logger.Fatal("HTTP server failed", zap.Error(server.ListenAndServe()))
 }
