@@ -24,33 +24,38 @@ func main() {
 
 // Print a beautiful banner
 func printBanner() {
-	// ANSI color codes for Alboom brand colors
-	pink := "\033[38;5;205m"      // #EE358E
-	purple := "\033[38;5;54m"     // #5F3494
-	orange := "\033[38;5;215m"    // #FCBA72
-	teal := "\033[38;5;72m"       // #55BFAB
-	cyan := "\033[38;5;81m"       // #5EC2EE
-	darkPurple := "\033[38;5;53m" // #462F80
-	reset := "\033[0m"
+	// Gradient colors from Alboom brand - hot pink to purple to cyan
+	// Using true color (24-bit) ANSI escape codes for smooth gradients
+	r := "\033[0m"
 
-	// Alboom logo in ASCII with brand colors
+	// Color stops for gradient: Pink -> Purple -> Teal -> Cyan
+	c := []string{
+		"\033[38;2;238;53;142m", // #EE358E pink
+		"\033[38;2;200;50;140m", // transition
+		"\033[38;2;162;47;138m", // transition
+		"\033[38;2;124;52;136m", // transition
+		"\033[38;2;95;52;148m",  // #5F3494 purple
+		"\033[38;2;85;140;160m", // transition
+		"\033[38;2;85;175;165m", // transition
+		"\033[38;2;85;194;171m", // #55BFAB teal
+		"\033[38;2;94;194;238m", // #5EC2EE cyan
+	}
+
 	fmt.Println()
-	fmt.Printf("       %s██████%s▄▄%s\n", pink, purple, reset)
-	fmt.Printf("       %s██████%s  ▀▀▄▄%s\n", pink, purple, reset)
-	fmt.Printf("%s██████%s %s██████%s      ██%s\n", orange, reset, teal, purple, reset)
-	fmt.Printf("%s██████%s %s██████%s      ██%s\n", orange, reset, teal, purple, reset)
-	fmt.Printf("%s██████%s %s██████%s  ▄▄▀▀%s\n", orange, reset, teal, purple, reset)
-	fmt.Printf("%s▄▄%s     %s██████%s▀▀%s\n", purple, reset, cyan, purple, reset)
-	fmt.Printf("%s  ▀▀▄▄%s %s██████%s\n", purple, reset, cyan, reset)
-	fmt.Printf("%s      ▀▀%s\n", purple, reset)
 	fmt.Println()
 
-	// Alboom Ipê text
-	fmt.Printf("%s    _    _ _                           ___        __%s\n", darkPurple, reset)
-	fmt.Printf("%s   /_\\  | | |__   ___   ___  _ __ ___  |_ _|_ __   ___  %s\n", darkPurple, reset)
-	fmt.Printf("%s  //_\\\\ | | '_ \\ / _ \\ / _ \\| '_ ` _ \\  | || '_ \\ / _ \\ %s\n", darkPurple, reset)
-	fmt.Printf("%s /  _  \\| | |_) | (_) | (_) | | | | | | | || |_) |  __/%s\n", darkPurple, reset)
-	fmt.Printf("%s/_/ \\_\\_|_.__/ \\___/ \\___/|_| |_| |_||___|  __/ \\___|%s\n", darkPurple, reset)
-	fmt.Printf("%s                                          |_|%s\n", darkPurple, reset)
+	// ALBOOM IPÊ - Brutal gradient ASCII art
+	fmt.Printf("  %s█████%s  %s██%s      %s████%s    %s█████%s   %s█████%s  %s███%s   %s███%s    %s████%s  %s████%s   %s█████%s\n",
+		c[0], r, c[1], r, c[2], r, c[3], r, c[4], r, c[5], r, c[6], r, c[7], r, c[7], r, c[8], r)
+	fmt.Printf(" %s██   ██%s %s██%s      %s██  ██%s  %s██   ██%s %s██   ██%s %s████%s %s████%s   %s██%s    %s██  ██%s %s██%s\n",
+		c[0], r, c[1], r, c[2], r, c[3], r, c[4], r, c[5], r, c[6], r, c[7], r, c[7], r, c[8], r)
+	fmt.Printf(" %s███████%s %s██%s      %s██████%s  %s██   ██%s %s██   ██%s %s██%s %s██%s %s██%s   %s██%s    %s██████%s %s████%s\n",
+		c[0], r, c[1], r, c[2], r, c[3], r, c[4], r, c[5], r, c[5], r, c[6], r, c[7], r, c[7], r, c[8], r)
+	fmt.Printf(" %s██   ██%s %s██%s      %s██   ██%s %s██   ██%s %s██   ██%s %s██%s     %s██%s   %s██%s    %s██%s      %s██%s\n",
+		c[0], r, c[1], r, c[2], r, c[3], r, c[4], r, c[5], r, c[6], r, c[7], r, c[7], r, c[8], r)
+	fmt.Printf(" %s██   ██%s %s██████%s %s████████%s %s█████%s   %s█████%s  %s██%s     %s██%s   %s████%s  %s██%s     %s█████%s\n",
+		c[0], r, c[1], r, c[2], r, c[3], r, c[4], r, c[5], r, c[6], r, c[7], r, c[7], r, c[8], r)
+
+	fmt.Println()
 	fmt.Println()
 }
