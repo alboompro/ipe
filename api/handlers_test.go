@@ -299,8 +299,7 @@ func Test_PostEvents_WithSocketID(t *testing.T) {
 
 func Test_PostEvents_EventSizeLimit(t *testing.T) {
 	appID := testApp.AppID
-	// Create a payload larger than 10KB
-	largeData := strings.Repeat("x", 10*1000+1)
+	largeData := strings.Repeat("x", maxDataEventSize+1)
 	payload := fmt.Sprintf(`{"name":"test-event","channel":"test-channel","data":"%s"}`, largeData)
 
 	r, _ := http.NewRequest("POST", fmt.Sprintf("/apps/%s/events", appID), strings.NewReader(payload))
@@ -315,6 +314,47 @@ func Test_PostEvents_EventSizeLimit(t *testing.T) {
 
 	if w.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("w.Code == %d, wants %d", w.Code, http.StatusRequestEntityTooLarge)
+	}
+}
+
+func Test_PostEvents_AllowsPayloadAtSizeLimit(t *testing.T) {
+	appID := testApp.AppID
+	// json.RawMessage includes the surrounding quotes in the measured size.
+	dataAtLimit := strings.Repeat("x", maxDataEventSize-2)
+	payload := fmt.Sprintf(`{"name":"test-event","channel":"test-channel","data":"%s"}`, dataAtLimit)
+
+	r, _ := http.NewRequest("POST", fmt.Sprintf("/apps/%s/events", appID), strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	r = mux.SetURLVars(r, map[string]string{
+		"app_id": appID,
+	})
+	w := httptest.NewRecorder()
+
+	handler := &PostEvents{database}
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("w.Code == %d, wants %d", w.Code, http.StatusOK)
+	}
+}
+
+func Test_PostEvents_AllowsPayloadLargerThanPreviousLimit(t *testing.T) {
+	appID := testApp.AppID
+	largeData := strings.Repeat("x", 10*1000+1)
+	payload := fmt.Sprintf(`{"name":"test-event","channel":"test-channel","data":"%s"}`, largeData)
+
+	r, _ := http.NewRequest("POST", fmt.Sprintf("/apps/%s/events", appID), strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	r = mux.SetURLVars(r, map[string]string{
+		"app_id": appID,
+	})
+	w := httptest.NewRecorder()
+
+	handler := &PostEvents{database}
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("w.Code == %d, wants %d", w.Code, http.StatusOK)
 	}
 }
 
