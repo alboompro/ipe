@@ -28,9 +28,9 @@ const (
 	appNotFoundError = "Could not found an app with app_id: %s"
 )
 
-// // Maximum event size permitted 10 kB
+// Maximum event size permitted: 5 MiB.
 // See: http://blogs.gnome.org/cneumair/2008/09/30/1-kb-1024-bytes-no-1-kb-1000-bytes/
-const maxDataEventSize = 10 * 1000
+const maxDataEventSize = 5 * 1024 * 1024
 
 // Prepare QueryString
 func prepareQueryString(params url.Values) string {
@@ -176,7 +176,7 @@ func (h *PostEvents) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The event data should not be larger than 10KB.
+	// The event data should not be larger than 5 MiB.
 	if len(input.Data) > maxDataEventSize {
 		http.Error(w, "Request too large.", http.StatusRequestEntityTooLarge)
 		return
