@@ -223,9 +223,11 @@ func (c *Channel) Subscribe(conn *connection.Connection, channelData string) err
 			return err
 		}
 
-		conn.Publish(events.NewSubscriptionSucceeded(c.ID, string(js)))
-	} else {
-		conn.Publish(events.NewSubscriptionSucceeded(c.ID, "{}"))
+		if pubErr := conn.Publish(events.NewSubscriptionSucceeded(c.ID, string(js))); pubErr != nil {
+			logger.Error("Failed to confirm subscription", zap.Error(pubErr), zap.String("socket_id", conn.SocketID), zap.String("channel_id", c.ID))
+		}
+	} else if pubErr := conn.Publish(events.NewSubscriptionSucceeded(c.ID, "{}")); pubErr != nil {
+		logger.Error("Failed to confirm subscription", zap.Error(pubErr), zap.String("socket_id", conn.SocketID), zap.String("channel_id", c.ID))
 	}
 
 	if c.TotalSubscriptions() == 1 {
@@ -288,7 +290,9 @@ func (c *Channel) PublishMemberAddedEvent(data string, sub *subscription.Subscri
 
 	for _, subs := range c.subscriptions {
 		if subs != sub {
-			subs.Connection.Publish(events.NewMemberAdded(c.ID, data))
+			if pubErr := subs.Connection.Publish(events.NewMemberAdded(c.ID, data)); pubErr != nil {
+				logger.Error("Failed to publish member added", zap.Error(pubErr), zap.String("socket_id", subs.Connection.SocketID), zap.String("channel_id", c.ID))
+			}
 		}
 	}
 }
@@ -300,7 +304,9 @@ func (c *Channel) PublishMemberRemovedEvent(sub *subscription.Subscription) {
 
 	for _, subs := range c.subscriptions {
 		if subs != sub {
-			subs.Connection.Publish(events.NewMemberRemoved(c.ID, sub.ID))
+			if pubErr := subs.Connection.Publish(events.NewMemberRemoved(c.ID, sub.ID)); pubErr != nil {
+				logger.Error("Failed to publish member removed", zap.Error(pubErr), zap.String("socket_id", subs.Connection.SocketID), zap.String("channel_id", c.ID))
+			}
 		}
 	}
 }
@@ -327,7 +333,9 @@ func (c *Channel) Publish(event events.Raw, ignore string) error {
 
 	for _, subs := range c.subscriptions {
 		if subs.Connection.SocketID != ignore {
-			subs.Connection.Publish(events.NewResponse(event.Event, event.Channel, v))
+			if pubErr := subs.Connection.Publish(events.NewResponse(event.Event, event.Channel, v)); pubErr != nil {
+				logger.Error("Failed to publish event to subscriber", zap.Error(pubErr), zap.String("socket_id", subs.Connection.SocketID), zap.String("channel_id", c.ID))
+			}
 		} else if utils.IsClientEvent(event.Event) {
 			for _, hook := range c.clientEventListeners {
 				hook(c, subs, event.Event, v)

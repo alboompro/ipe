@@ -39,11 +39,12 @@ var upgrader = websocket.Upgrader{
 }
 
 const (
-	// WriteWait is the time allowed to write a message to the peer
-	WriteWait = 10 * time.Second
-	// PongWait is the time allowed to read the next pong message from the peer
+	// PongWait is how long the peer may stay silent before we treat it as gone.
+	// Every inbound message and every pong pushes this forward, so a live
+	// connection has no maximum age.
 	PongWait = 60 * time.Second
-	// PingPeriod is how often to send pings to peer (must be less than PongWait)
+	// PingPeriod is how often to ping. It stays under PongWait so an idle
+	// but alive client never trips the read deadline.
 	PingPeriod = (PongWait * 9) / 10
 )
 
@@ -97,30 +98,41 @@ func (h *Websocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMessages(conn *websocket.Conn, sessionID string, application *app.Application) {
-	// Set read deadline
+	peer, err := application.FindConnection(sessionID)
+	if err != nil {
+		logger.Error("Connection not found", zap.Error(err), zap.String("socket_id", sessionID))
+		return
+	}
+	// The read loop is the life of the socket. Any exit means the peer is gone.
+	defer onClose(sessionID, application)
+
 	if err := conn.SetReadDeadline(time.Now().Add(PongWait)); err != nil {
 		logger.Error("Failed to set read deadline", zap.Error(err))
 		return
 	}
 	conn.SetPongHandler(func(string) error {
-		if err := conn.SetReadDeadline(time.Now().Add(PongWait)); err != nil {
-			return err
-		}
-		return nil
+		return conn.SetReadDeadline(time.Now().Add(PongWait))
 	})
 
-	// Start ping ticker
 	pingTicker := time.NewTicker(PingPeriod)
 	defer pingTicker.Stop()
+	stopPing := make(chan struct{})
+	defer close(stopPing)
 
-	// Start a goroutine to send ping messages
 	go func() {
-		for range pingTicker.C {
-			if err := conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
+		for {
+			select {
+			case <-stopPing:
 				return
-			}
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
+			case <-pingTicker.C:
+				// WriteControl has its own deadline and does not arm the deadline
+				// used by data frames, so a ping cannot expire a later publish.
+				deadline := time.Now().Add(connection.WriteWait)
+				if err := conn.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+					logger.Error("Failed to write websocket ping", zap.Error(err), zap.String("socket_id", sessionID))
+					_ = conn.Close()
+					return
+				}
 			}
 		}
 	}()
@@ -130,7 +142,8 @@ func handleMessages(conn *websocket.Conn, sessionID string, application *app.App
 	}
 
 	for {
-		// Set read deadline for next message
+		// Renew on every wait. A message or a pong pushes the idle window
+		// forward, so the socket stays up for as long as the peer is alive.
 		if err := conn.SetReadDeadline(time.Now().Add(PongWait)); err != nil {
 			logger.Error("Failed to set read deadline", zap.Error(err))
 			return
@@ -138,12 +151,12 @@ func handleMessages(conn *websocket.Conn, sessionID string, application *app.App
 		_, message, err := conn.ReadMessage()
 
 		if err != nil {
-			handleError(conn, sessionID, application, err)
+			handleError(peer, sessionID, application, err)
 			return
 		}
 
 		if err := json.Unmarshal(message, &event); err != nil {
-			emitError(reconnectImmediately, conn)
+			emitPeerError(reconnectImmediately, peer)
 			return
 		}
 
@@ -151,37 +164,42 @@ func handleMessages(conn *websocket.Conn, sessionID string, application *app.App
 
 		switch event.Event {
 		case "pusher:ping":
-			handlePing(conn)
+			handlePing(peer)
 		case "pusher:subscribe":
-			handleSubscribe(conn, sessionID, application, message)
+			handleSubscribe(peer, sessionID, application, message)
 		case "pusher:unsubscribe":
-			handleUnsubscribe(conn, sessionID, application, message)
+			handleUnsubscribe(peer, sessionID, application, message)
 		default:
 			if utils.IsClientEvent(event.Event) {
-				handleClientEvent(conn, sessionID, application, message)
+				handleClientEvent(peer, sessionID, application, message)
 			}
 		}
 	}
 }
 
-// Emit an Websocket ErrorEvent
+// Emit an Websocket ErrorEvent before the connection is registered.
 func emitError(err *websocketError, conn *websocket.Conn) {
 	event := events.NewError(err.Code, err.Msg)
-
-	if err := conn.WriteJSON(event); err != nil {
-		logger.Error("Failed to write error to websocket", zap.Error(err))
+	if writeErr := connection.Send(conn, "", event); writeErr != nil {
+		logger.Error("Failed to write error to websocket", zap.Error(writeErr))
 	}
 }
 
-func handleError(conn *websocket.Conn, sessionID string, application *app.Application, err error) {
+func emitPeerError(err *websocketError, peer *connection.Connection) {
+	if pubErr := peer.Publish(events.NewError(err.Code, err.Msg)); pubErr != nil {
+		logger.Error("Failed to write error to websocket", zap.Error(pubErr), zap.String("socket_id", peer.SocketID))
+	}
+}
+
+func handleError(peer *connection.Connection, sessionID string, application *app.Application, err error) {
 	logger.Error("Websocket error", zap.Error(err), zap.String("socket_id", sessionID), zap.String("app_id", application.AppID))
 	if err == io.EOF {
-		onClose(sessionID, application)
-	} else if _, ok := err.(*websocket.CloseError); ok {
-		onClose(sessionID, application)
-	} else {
-		emitError(reconnectImmediately, conn)
+		return
 	}
+	if _, ok := err.(*websocket.CloseError); ok {
+		return
+	}
+	emitPeerError(reconnectImmediately, peer)
 }
 
 func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, application *app.Application) *websocketError {
@@ -216,7 +234,8 @@ func onOpen(conn *websocket.Conn, r *http.Request, sessionID string, application
 	application.Connect(_connection)
 
 	// Everything went fine.
-	if err := conn.WriteJSON(events.NewConnectionEstablished(_connection.SocketID)); err != nil {
+	if err := _connection.Publish(events.NewConnectionEstablished(_connection.SocketID)); err != nil {
+		application.Disconnect(sessionID)
 		return reconnectImmediately
 	}
 
@@ -227,96 +246,91 @@ func onClose(sessionID string, application *app.Application) {
 	application.Disconnect(sessionID)
 }
 
-func handlePing(conn *websocket.Conn) {
-	if err := conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
-		logger.Error("Failed to set write deadline", zap.Error(err))
-		return
-	}
-	if err := conn.WriteJSON(events.NewPong()); err != nil {
-		logger.Error("Failed to write pong", zap.Error(err))
-		emitError(reconnectImmediately, conn)
+func handlePing(peer *connection.Connection) {
+	if err := peer.Publish(events.NewPong()); err != nil {
+		logger.Error("Failed to write pong", zap.Error(err), zap.String("socket_id", peer.SocketID))
 	}
 }
 
-func handleClientEvent(conn *websocket.Conn, sessionID string, application *app.Application, message []byte) {
+func handleClientEvent(peer *connection.Connection, sessionID string, application *app.Application, message []byte) {
 	if !application.UserEvents {
-		emitError(&websocketError{Code: 0, Msg: "To send client events, you must enable this feature in the Settings."}, conn)
+		emitPeerError(&websocketError{Code: 0, Msg: "To send client events, you must enable this feature in the Settings."}, peer)
 	}
 
 	clientEvent := events.Raw{}
 
 	if err := json.Unmarshal(message, &clientEvent); err != nil {
 		logger.Error("Failed to unmarshal client event", zap.Error(err))
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 		return
 	}
 
 	channel, err := application.FindChannelByChannelID(clientEvent.Channel)
 
 	if err != nil {
-		emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a channel with the id %s", clientEvent.Channel)}, conn)
+		emitPeerError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a channel with the id %s", clientEvent.Channel)}, peer)
 		return
 	}
 
 	if !channel.IsPresenceOrPrivate() {
-		emitError(&websocketError{Code: 0, Msg: "Client event rejected - only supported on private and presence channels"}, conn)
+		emitPeerError(&websocketError{Code: 0, Msg: "Client event rejected - only supported on private and presence channels"}, peer)
 		return
 	}
 
 	if err := application.Publish(channel, clientEvent, sessionID); err != nil {
 		logger.Error("Failed to publish client event", zap.Error(err), zap.String("channel", clientEvent.Channel), zap.String("socket_id", sessionID))
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 		return
 	}
 }
 
-func handleUnsubscribe(conn *websocket.Conn, sessionID string, application *app.Application, message []byte) {
+func handleUnsubscribe(peer *connection.Connection, sessionID string, application *app.Application, message []byte) {
 	unsubscribeEvent := events.Unsubscribe{}
 
 	if err := json.Unmarshal(message, &unsubscribeEvent); err != nil {
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 		return
 	}
 
 	_connection, err := application.FindConnection(sessionID)
 
 	if err != nil {
-		emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a connection with the id %s", sessionID)}, conn)
+		emitPeerError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a connection with the id %s", sessionID)}, peer)
 		return
 	}
 
 	channel, err := application.FindChannelByChannelID(unsubscribeEvent.Data.Channel)
 
 	if err != nil {
-		emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a channel with the id %s", unsubscribeEvent.Data.Channel)}, conn)
+		emitPeerError(&websocketError{Code: 0, Msg: fmt.Sprintf("Could not find a channel with the id %s", unsubscribeEvent.Data.Channel)}, peer)
 		return
 	}
 
 	if err := application.Unsubscribe(channel, _connection); err != nil {
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 		return
 	}
 }
 
-func handleSubscribe(conn *websocket.Conn, sessionID string, application *app.Application, message []byte) {
+func handleSubscribe(peer *connection.Connection, sessionID string, application *app.Application, message []byte) {
 	subscribeEvent := events.Subscribe{}
 
 	if err := json.Unmarshal(message, &subscribeEvent); err != nil {
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 		return
 	}
 
 	_connection, err := application.FindConnection(sessionID)
 
 	if err != nil {
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 		return
 	}
 
 	channelName := strings.TrimSpace(subscribeEvent.Data.Channel)
 
 	if !utils.IsChannelNameValid(channelName) {
-		emitError(&websocketError{Code: 0, Msg: "This channel name is not valid"}, conn)
+		emitPeerError(&websocketError{Code: 0, Msg: "This channel name is not valid"}, peer)
 		return
 	}
 
@@ -331,7 +345,7 @@ func handleSubscribe(conn *websocket.Conn, sessionID string, application *app.Ap
 		}
 
 		if !validateAuthKey(subscribeEvent.Data.Auth, toSign, application) {
-			emitError(&websocketError{Code: 0, Msg: fmt.Sprintf("Auth value for subscription to %s is invalid", channelName)}, conn)
+			emitPeerError(&websocketError{Code: 0, Msg: fmt.Sprintf("Auth value for subscription to %s is invalid", channelName)}, peer)
 			return
 		}
 	}
@@ -340,7 +354,7 @@ func handleSubscribe(conn *websocket.Conn, sessionID string, application *app.Ap
 	logger.Debug("Channel subscription data", zap.String("channel_id", channelName), zap.String("channel_data", subscribeEvent.Data.ChannelData))
 
 	if err := application.Subscribe(channel, _connection, subscribeEvent.Data.ChannelData); err != nil {
-		emitError(reconnectImmediately, conn)
+		emitPeerError(reconnectImmediately, peer)
 	}
 }
 

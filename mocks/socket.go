@@ -3,6 +3,7 @@ package mocks
 
 import (
 	"sync"
+	"time"
 )
 
 // MockSocket is a mock implementation of Socket
@@ -56,4 +57,15 @@ func (s *MockSocket) MessageCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.messages)
+}
+
+// SetWriteDeadline implements connection.Socket. The mock does not enforce it;
+// Connection.Publish is tested with a socket that does.
+func (s *MockSocket) SetWriteDeadline(time.Time) error {
+	return nil
+}
+
+// Close implements connection.Socket.
+func (s *MockSocket) Close() error {
+	return nil
 }
