@@ -8,3 +8,4 @@ resources:
   - service.yaml
   - configmap.yaml
   - env-configmap.yaml
+  - hpa.yaml

@@ -325,10 +325,11 @@ func TestPublishEvent(t *testing.T) {
 	appID := "test-app"
 	channelID := "test-channel-pubsub"
 
-	// Subscribe to channel events
-	msgChan, err := client.SubscribeToChannelEvents(appID, channelID)
-	if err != nil {
-		t.Fatalf("Failed to subscribe to channel events: %v", err)
+	sub := client.ListenEvents()
+	defer sub.Close()
+
+	if err := sub.Watch(appID, channelID); err != nil {
+		t.Fatalf("Failed to watch channel events: %v", err)
 	}
 
 	// Publish an event
@@ -345,7 +346,7 @@ func TestPublishEvent(t *testing.T) {
 
 	// Wait for message with timeout
 	select {
-	case msg := <-msgChan:
+	case msg := <-sub.Messages():
 		var receivedEvent EventMessage
 		if err := json.Unmarshal([]byte(msg.Payload), &receivedEvent); err != nil {
 			t.Fatalf("Failed to unmarshal event message: %v", err)
@@ -355,6 +356,31 @@ func TestPublishEvent(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Error("Timeout waiting for published event")
+	}
+
+	if err := sub.Unwatch(appID, channelID); err != nil {
+		t.Fatalf("Failed to unwatch channel events: %v", err)
+	}
+
+	if err := client.PublishEvent(appID, channelID, event); err != nil {
+		t.Fatalf("Failed to publish event after unwatch: %v", err)
+	}
+
+	select {
+	case msg := <-sub.Messages():
+		t.Errorf("received event after unwatch: %s", msg.Payload)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestParseEventChannel(t *testing.T) {
+	got, ok := ParseEventChannel("6", EventChannel("6", "gallery-479634"))
+	if !ok || got != "gallery-479634" {
+		t.Fatalf("ParseEventChannel() = %q, %v", got, ok)
+	}
+
+	if _, ok := ParseEventChannel("6", EventChannel("5", "gallery-479634")); ok {
+		t.Fatal("ParseEventChannel() accepted another app's channel")
 	}
 }
 

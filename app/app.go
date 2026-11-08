@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 
+	redisv9 "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"ipe/channel"
 	"ipe/connection"
@@ -40,9 +41,11 @@ type Application struct {
 
 	redisClient *redis.Client
 
-	// Channel pub/sub subscribers for cross-instance events
+	// One Redis Pub/Sub connection for every channel on this instance.
+	// channelSubscribers tracks which channels that connection is watching.
+	eventSub           *redis.EventSubscription
 	channelSubscribers map[string]struct{}
-	subscribersMutex   sync.RWMutex
+	subscribersMutex   sync.Mutex
 
 	Stats *expvar.Map `json:"-"`
 }
@@ -227,11 +230,11 @@ func (a *Application) FindConnection(socketID string) (*connection.Connection, e
 func (a *Application) RemoveChannel(c *channel.Channel) {
 	logger.Info("Removing channel", zap.String("channel_id", c.ID), zap.String("app_id", a.AppID), zap.String("app_name", a.Name))
 
-	// Clean up Redis Pub/Sub subscriber
+	// Drop the Redis subscription before the local map entry so an in-flight
+	// message can still find the channel, and a removed channel cannot linger
+	// on the shared Pub/Sub connection.
 	if a.redisClient != nil {
-		a.subscribersMutex.Lock()
-		delete(a.channelSubscribers, c.ID)
-		a.subscribersMutex.Unlock()
+		a.teardownChannelPubSub(c.ID)
 	}
 
 	a.Lock()
@@ -259,14 +262,7 @@ func (a *Application) AddChannel(c *channel.Channel) {
 	logger.Info("Adding new channel", zap.String("channel_id", c.ID), zap.String("app_id", a.AppID), zap.String("app_name", a.Name))
 
 	a.Lock()
-	defer a.Unlock()
-
 	a.channels[c.ID] = c
-
-	// Set up Redis Pub/Sub listener for this channel if Redis is available
-	if a.redisClient != nil {
-		a.setupChannelPubSub(c.ID)
-	}
 
 	if c.IsPresence() {
 		a.Stats.Add("TotalPresenceChannels", 1)
@@ -281,71 +277,102 @@ func (a *Application) AddChannel(c *channel.Channel) {
 	}
 
 	a.Stats.Add("TotalChannels", 1)
+	a.Unlock()
+
+	// Redis I/O stays outside the application lock. setupChannelPubSub used to
+	// run under it and could block every lookup on a subscribe round-trip.
+	if a.redisClient != nil {
+		a.setupChannelPubSub(c.ID)
+	}
 }
 
-// setupChannelPubSub sets up a Redis Pub/Sub listener for a channel
+// setupChannelPubSub subscribes the shared Redis connection to a channel.
 func (a *Application) setupChannelPubSub(channelID string) {
 	a.subscribersMutex.Lock()
 	defer a.subscribersMutex.Unlock()
 
-	// Check if already subscribed
 	if _, exists := a.channelSubscribers[channelID]; exists {
 		return
 	}
 
-	// Subscribe to Redis Pub/Sub
-	msgChan, err := a.redisClient.SubscribeToChannelEvents(a.AppID, channelID)
-	if err != nil {
+	if a.eventSub == nil {
+		a.eventSub = a.redisClient.ListenEvents()
+		go a.consumeRedisEvents(a.eventSub.Messages())
+	}
+
+	if err := a.eventSub.Watch(a.AppID, channelID); err != nil {
 		logger.Error("Failed to subscribe to channel events", zap.Error(err), zap.String("channel_id", channelID))
 		return
 	}
 
 	a.channelSubscribers[channelID] = struct{}{}
+}
 
-	// Start goroutine to handle incoming messages
-	go func() {
-		for msg := range msgChan {
-			var eventMsg redis.EventMessage
-			if err := json.Unmarshal([]byte(msg.Payload), &eventMsg); err != nil {
-				logger.Error("Failed to unmarshal event message from Redis", zap.Error(err))
-				continue
-			}
+// teardownChannelPubSub removes a channel from the shared Redis connection.
+func (a *Application) teardownChannelPubSub(channelID string) {
+	a.subscribersMutex.Lock()
+	defer a.subscribersMutex.Unlock()
 
-			// Find the channel and publish to local connections
-			ch, channelErr := a.FindChannelByChannelID(channelID)
-			if channelErr != nil {
-				logger.Error("Channel not found for Redis event", zap.Error(channelErr), zap.String("channel_id", channelID))
-				continue
-			}
+	if _, exists := a.channelSubscribers[channelID]; !exists {
+		return
+	}
+	delete(a.channelSubscribers, channelID)
 
-			// Convert event message back to events.Raw
-			eventData, marshalErr := json.Marshal(eventMsg.Data)
-			if marshalErr != nil {
-				logger.Error("Failed to marshal event data", zap.Error(marshalErr))
-				continue
-			}
+	if a.eventSub == nil {
+		return
+	}
+	if err := a.eventSub.Unwatch(a.AppID, channelID); err != nil {
+		logger.Error("Failed to unsubscribe from channel events", zap.Error(err), zap.String("channel_id", channelID))
+	}
+}
 
-			rawEvent := events.Raw{
-				Event:   eventMsg.Event,
-				Channel: eventMsg.Channel,
-				Data:    json.RawMessage(eventData),
-			}
+// consumeRedisEvents delivers cross-instance events to local subscribers.
+// The goroutine exits when the shared Pub/Sub connection is closed.
+func (a *Application) consumeRedisEvents(msgs <-chan *redisv9.Message) {
+	for msg := range msgs {
+		channelID, ok := redis.ParseEventChannel(a.AppID, msg.Channel)
+		if !ok {
+			continue
+		}
 
-			// Publish to local connections (skip the ignore ID if it's a local connection)
-			// Only ignore if it's from this instance (to avoid duplicate)
-			ignoreID := ""
-			if eventMsg.IgnoreID != "" {
-				instanceID, err := a.redisClient.GetConnectionInstance(a.AppID, eventMsg.IgnoreID)
-				if err == nil && instanceID == a.redisClient.GetInstanceID() {
-					ignoreID = eventMsg.IgnoreID
-				}
-			}
+		var eventMsg redis.EventMessage
+		if err := json.Unmarshal([]byte(msg.Payload), &eventMsg); err != nil {
+			logger.Error("Failed to unmarshal event message from Redis", zap.Error(err))
+			continue
+		}
 
-			if publishErr := ch.Publish(rawEvent, ignoreID); publishErr != nil {
-				logger.Error("Failed to publish event from Redis", zap.Error(publishErr), zap.String("channel_id", channelID))
+		ch, channelErr := a.FindChannelByChannelID(channelID)
+		if channelErr != nil {
+			logger.Error("Channel not found for Redis event", zap.Error(channelErr), zap.String("channel_id", channelID))
+			continue
+		}
+
+		eventData, marshalErr := json.Marshal(eventMsg.Data)
+		if marshalErr != nil {
+			logger.Error("Failed to marshal event data", zap.Error(marshalErr))
+			continue
+		}
+
+		rawEvent := events.Raw{
+			Event:   eventMsg.Event,
+			Channel: eventMsg.Channel,
+			Data:    json.RawMessage(eventData),
+		}
+
+		// Ignore the publisher only when it is connected to this instance,
+		// so a socket on another pod still receives the event.
+		ignoreID := ""
+		if eventMsg.IgnoreID != "" {
+			instanceID, err := a.redisClient.GetConnectionInstance(a.AppID, eventMsg.IgnoreID)
+			if err == nil && instanceID == a.redisClient.GetInstanceID() {
+				ignoreID = eventMsg.IgnoreID
 			}
 		}
-	}()
+
+		if publishErr := ch.Publish(rawEvent, ignoreID); publishErr != nil {
+			logger.Error("Failed to publish event from Redis", zap.Error(publishErr), zap.String("channel_id", channelID))
+		}
+	}
 }
 
 // FindOrCreateChannelByChannelID Returns a Channel from this Application

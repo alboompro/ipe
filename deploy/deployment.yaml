@@ -5,7 +5,8 @@ metadata:
   labels:
     app: ${APP_NAME}
 spec:
-  replicas: 1
+  # Replica count is owned by the HPA. Leaving it unset keeps a deploy from
+  # resetting the scale back to 1.
   selector:
     matchLabels:
       app: ${APP_NAME}
@@ -34,11 +35,11 @@ spec:
           readOnly: true
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "100m"
+            memory: "256Mi"
+            cpu: "200m"
           limits:
-            memory: "512Mi"
-            cpu: "500m"
+            memory: "1Gi"
+            cpu: "1"
       volumes:
       - name: config
         configMap:

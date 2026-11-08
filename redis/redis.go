@@ -314,15 +314,32 @@ func (c *Client) GetSubscriptionMetadata(appID, channelID, socketID string) (*Su
 	return &metadata, nil
 }
 
+// EventChannel is the Redis Pub/Sub key used to fan an event out to other instances.
+func EventChannel(appID, channelID string) string {
+	return fmt.Sprintf("ipe:app:%s:channel:%s:events", appID, channelID)
+}
+
+// ParseEventChannel returns the application channel id carried by a Redis Pub/Sub key.
+func ParseEventChannel(appID, redisChannel string) (string, bool) {
+	prefix := fmt.Sprintf("ipe:app:%s:channel:", appID)
+	const suffix = ":events"
+	if len(redisChannel) <= len(prefix)+len(suffix) {
+		return "", false
+	}
+	if !strings.HasPrefix(redisChannel, prefix) || !strings.HasSuffix(redisChannel, suffix) {
+		return "", false
+	}
+	return redisChannel[len(prefix) : len(redisChannel)-len(suffix)], true
+}
+
 // PublishEvent publishes an event to Redis Pub/Sub for cross-instance distribution
 func (c *Client) PublishEvent(appID, channelID string, event EventMessage) error {
-	pubSubChannel := fmt.Sprintf("ipe:app:%s:channel:%s:events", appID, channelID)
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	err = c.rdb.Publish(c.ctx, pubSubChannel, data).Err()
+	err = c.rdb.Publish(c.ctx, EventChannel(appID, channelID), data).Err()
 	if err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
@@ -331,20 +348,55 @@ func (c *Client) PublishEvent(appID, channelID string, event EventMessage) error
 	return nil
 }
 
-// SubscribeToChannelEvents subscribes to Redis Pub/Sub for a channel and returns a channel for receiving events
-func (c *Client) SubscribeToChannelEvents(appID, channelID string) (<-chan *redisv9.Message, error) {
-	pubSubChannel := fmt.Sprintf("ipe:app:%s:channel:%s:events", appID, channelID)
-	pubsub := c.rdb.Subscribe(c.ctx, pubSubChannel)
+// EventSubscription is one Redis connection that receives events for many channels.
+// A channel is added with Watch and removed with Unwatch, so an idle channel does
+// not leave a connection or goroutine behind.
+type EventSubscription struct {
+	pubsub *redisv9.PubSub
+	msgs   <-chan *redisv9.Message
+}
 
-	// Wait for confirmation
-	_, err := pubsub.Receive(c.ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to channel events: %w", err)
+// ListenEvents opens the shared Pub/Sub connection for this process.
+func (c *Client) ListenEvents() *EventSubscription {
+	pubsub := c.rdb.Subscribe(c.ctx)
+	return &EventSubscription{
+		pubsub: pubsub,
+		msgs:   pubsub.Channel(redisv9.WithChannelSize(256)),
 	}
+}
 
-	ch := pubsub.Channel()
-	logger.Debug("Subscribed to channel events", zap.String("app_id", appID), zap.String("channel_id", channelID))
-	return ch, nil
+// Messages returns the stream of events for every channel passed to Watch.
+func (s *EventSubscription) Messages() <-chan *redisv9.Message {
+	return s.msgs
+}
+
+// Watch starts delivering events published to the given channel.
+func (s *EventSubscription) Watch(appID, channelID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.pubsub.Subscribe(ctx, EventChannel(appID, channelID)); err != nil {
+		return fmt.Errorf("failed to watch channel events: %w", err)
+	}
+	logger.Debug("Watching channel events", zap.String("app_id", appID), zap.String("channel_id", channelID))
+	return nil
+}
+
+// Unwatch stops delivering events for the given channel and drops it from the Redis subscription.
+func (s *EventSubscription) Unwatch(appID, channelID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.pubsub.Unsubscribe(ctx, EventChannel(appID, channelID)); err != nil {
+		return fmt.Errorf("failed to unwatch channel events: %w", err)
+	}
+	logger.Debug("Unwatched channel events", zap.String("app_id", appID), zap.String("channel_id", channelID))
+	return nil
+}
+
+// Close closes the shared Pub/Sub connection.
+func (s *EventSubscription) Close() error {
+	return s.pubsub.Close()
 }
 
 // StorePresenceData stores presence channel data in Redis
