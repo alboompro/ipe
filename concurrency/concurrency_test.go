@@ -130,6 +130,52 @@ func TestConcurrentPublishes(t *testing.T) {
 	}
 }
 
+// TestConcurrentDisconnectWhileMutatingChannels races Disconnect against
+// channel creation. Disconnect used to range the channel map without a lock,
+// which fatal-crashes the process under the reconnect storm seen in production.
+func TestConcurrentDisconnectWhileMutatingChannels(t *testing.T) {
+	app := testutils.NewTestApp()
+
+	const numConns = 50
+	conns := make([]*connection.Connection, numConns)
+	for i := 0; i < numConns; i++ {
+		conn := connection.New(fmt.Sprintf("socket-%d", i), mocks.NewMockSocket())
+		app.Connect(conn)
+		ch := app.FindOrCreateChannelByChannelID(fmt.Sprintf("channel-%d", i%10))
+		if err := app.Subscribe(ch, conn, ""); err != nil {
+			t.Fatalf("subscribe: %v", err)
+		}
+		conns[i] = conn
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(numConns + 20)
+
+	for i := 0; i < numConns; i++ {
+		go func(id int) {
+			defer wg.Done()
+			app.Disconnect(conns[id].SocketID)
+		}(i)
+	}
+
+	for i := 0; i < 20; i++ {
+		go func(id int) {
+			defer wg.Done()
+			for n := 0; n < 100; n++ {
+				app.FindOrCreateChannelByChannelID(fmt.Sprintf("live-%d-%d", id, n))
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	for _, conn := range conns {
+		if _, err := app.FindConnection(conn.SocketID); err == nil {
+			t.Errorf("connection %s still registered after disconnect", conn.SocketID)
+		}
+	}
+}
+
 // TestConcurrentConnectionsDisconnections tests concurrent connections and disconnections
 func TestConcurrentConnectionsDisconnections(t *testing.T) { //nolint:revive // t required by testing framework
 	app := testutils.NewTestApp()

@@ -155,8 +155,10 @@ func (a *Application) Disconnect(socketID string) {
 		return
 	}
 
-	// Unsubscribe from channels
-	for _, c := range a.channels {
+	// Channels() snapshots the map under the read lock. Ranging a.channels
+	// directly races with AddChannel and RemoveChannel and aborts the process
+	// with "concurrent map iteration and map write".
+	for _, c := range a.Channels() {
 		if c.IsSubscribed(conn) {
 			if err := a.Unsubscribe(c, conn); err != nil {
 				logger.Error("Error while calling Application.Unsubscribe", zap.Error(err), zap.String("channel_id", c.ID), zap.String("socket_id", socketID))
